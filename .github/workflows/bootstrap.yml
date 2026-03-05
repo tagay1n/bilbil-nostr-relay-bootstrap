@@ -18,8 +18,8 @@ on:
           - wss
 
 concurrency:
-  group: deploy-v2
-  cancel-in-progress: false
+  group: deploy-bootstrap-${{ github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   quality:
