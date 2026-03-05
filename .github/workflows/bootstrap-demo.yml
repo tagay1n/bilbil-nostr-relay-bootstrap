@@ -1,0 +1,139 @@
+name: Bootstrap Demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_host:
+        description: Public host/IP for Coracle and relay URL
+        required: false
+        type: string
+      relay_scheme:
+        description: Relay scheme for Coracle defaults
+        required: false
+        default: ws
+        type: choice
+        options:
+          - ws
+          - wss
+
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck jq yamllint
+
+      - name: Run quality gate
+        run: ./scripts/quality_gate.sh
+
+  bootstrap:
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: demo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEMO_SSH_KEY }}
+
+      - name: Add host key
+        env:
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
+          DEMO_SSH_PORT: ${{ secrets.DEMO_SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${DEMO_SSH_PORT:-22}" -H "$DEMO_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Bootstrap VPS
+        env:
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
+          DEMO_SSH_PORT: ${{ secrets.DEMO_SSH_PORT }}
+          DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
+          DEMO_REPO_PATH: ${{ secrets.DEMO_REPO_PATH }}
+          DEMO_PUBLIC_HOST_SECRET: ${{ secrets.DEMO_PUBLIC_HOST }}
+          DEMO_RELAY_SCHEME_SECRET: ${{ secrets.DEMO_RELAY_SCHEME }}
+          DEMO_STACK_ROOT: ${{ secrets.DEMO_STACK_ROOT }}
+          DEMO_WWW_ROOT: ${{ secrets.DEMO_WWW_ROOT }}
+          INPUT_PUBLIC_HOST: ${{ github.event.inputs.public_host }}
+          INPUT_RELAY_SCHEME: ${{ github.event.inputs.relay_scheme }}
+          GIT_SHA: ${{ github.sha }}
+          GH_REPOSITORY: ${{ github.repository }}
+        run: |
+          PUBLIC_HOST="${INPUT_PUBLIC_HOST}"
+          if [[ -z "${PUBLIC_HOST}" ]]; then
+            PUBLIC_HOST="${DEMO_PUBLIC_HOST_SECRET}"
+          fi
+          if [[ -z "${PUBLIC_HOST}" ]]; then
+            echo "Missing public host. Provide workflow input 'public_host' or set DEMO_PUBLIC_HOST secret." >&2
+            exit 1
+          fi
+
+          RELAY_SCHEME="${INPUT_RELAY_SCHEME}"
+          if [[ -z "${RELAY_SCHEME}" ]]; then
+            RELAY_SCHEME="${DEMO_RELAY_SCHEME_SECRET:-ws}"
+          fi
+
+          ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
+            "DEMO_REPO_PATH=${DEMO_REPO_PATH@Q} \
+             GIT_SHA=${GIT_SHA@Q} \
+             GH_REPOSITORY=${GH_REPOSITORY@Q} \
+             PUBLIC_HOST=${PUBLIC_HOST@Q} \
+             RELAY_SCHEME=${RELAY_SCHEME@Q} \
+             DEMO_STACK_ROOT=${DEMO_STACK_ROOT@Q} \
+             DEMO_WWW_ROOT=${DEMO_WWW_ROOT@Q} \
+             bash -s" <<'EOSSH'
+          set -euo pipefail
+
+          if ! command -v sudo >/dev/null 2>&1; then
+            echo "sudo is required on target host" >&2
+            exit 1
+          fi
+
+          if ! sudo -n true >/dev/null 2>&1; then
+            echo "Target user requires passwordless sudo for bootstrap workflow" >&2
+            exit 1
+          fi
+
+          if ! command -v git >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y git
+          fi
+
+          if [[ -z "${DEMO_REPO_PATH}" || "${DEMO_REPO_PATH}" == "/" ]]; then
+            echo "Unsafe DEMO_REPO_PATH: ${DEMO_REPO_PATH}" >&2
+            exit 1
+          fi
+
+          if [[ ! -d "${DEMO_REPO_PATH}/.git" ]]; then
+            git clone "https://github.com/${GH_REPOSITORY}.git" "${DEMO_REPO_PATH}"
+          fi
+
+          cd "${DEMO_REPO_PATH}"
+          git fetch --prune origin
+          git checkout --detach "${GIT_SHA}"
+
+          ./deploy/scripts/install_http_stack.sh "${PUBLIC_HOST}"
+
+          export STACK_ROOT="${DEMO_STACK_ROOT:-/opt/nostr}"
+          export WWW_ROOT="${DEMO_WWW_ROOT:-/var/www/coracle}"
+
+          ./deploy/scripts/deploy_release.sh \
+            --env demo \
+            --public-host "${PUBLIC_HOST}" \
+            --relay-scheme "${RELAY_SCHEME}" \
+            --source-sha "${GIT_SHA}"
+          EOSSH

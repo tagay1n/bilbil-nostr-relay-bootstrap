@@ -1,0 +1,146 @@
+name: Deploy Demo
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck jq yamllint
+
+      - name: Run quality gate
+        run: ./scripts/quality_gate.sh
+
+  deploy:
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: demo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEMO_SSH_KEY }}
+
+      - name: Add host key
+        env:
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
+          DEMO_SSH_PORT: ${{ secrets.DEMO_SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${DEMO_SSH_PORT:-22}" -H "$DEMO_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy to VPS
+        env:
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
+          DEMO_SSH_PORT: ${{ secrets.DEMO_SSH_PORT }}
+          DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
+          DEMO_REPO_PATH: ${{ secrets.DEMO_REPO_PATH }}
+          DEMO_PUBLIC_HOST: ${{ secrets.DEMO_PUBLIC_HOST }}
+          DEMO_RELAY_SCHEME: ${{ secrets.DEMO_RELAY_SCHEME }}
+          DEMO_STACK_ROOT: ${{ secrets.DEMO_STACK_ROOT }}
+          DEMO_WWW_ROOT: ${{ secrets.DEMO_WWW_ROOT }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
+            "DEMO_REPO_PATH=${DEMO_REPO_PATH@Q} \
+             GIT_SHA=${GIT_SHA@Q} \
+             DEMO_STACK_ROOT=${DEMO_STACK_ROOT@Q} \
+             DEMO_WWW_ROOT=${DEMO_WWW_ROOT@Q} \
+             DEMO_PUBLIC_HOST=${DEMO_PUBLIC_HOST@Q} \
+             DEMO_RELAY_SCHEME=${DEMO_RELAY_SCHEME@Q} \
+             bash -s" <<'EOSSH'
+          set -euo pipefail
+
+          cd "${DEMO_REPO_PATH}"
+          git fetch --prune origin
+          git checkout --detach "${GIT_SHA}"
+
+          export STACK_ROOT="${DEMO_STACK_ROOT:-/opt/nostr}"
+          export WWW_ROOT="${DEMO_WWW_ROOT:-/var/www/coracle}"
+
+          RELAY_SCHEME="${DEMO_RELAY_SCHEME:-ws}"
+
+          ./deploy/scripts/deploy_release.sh \
+            --env demo \
+            --public-host "${DEMO_PUBLIC_HOST}" \
+            --relay-scheme "${RELAY_SCHEME}" \
+            --source-sha "${GIT_SHA}"
+          EOSSH
+
+  notify:
+    needs:
+      - quality
+      - deploy
+    if: always()
+    runs-on: ubuntu-latest
+    environment: demo
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install notifier deps
+        run: |
+          rm -rf /tmp/nostr-notify
+          mkdir -p /tmp/nostr-notify
+          cp ./scripts/notify_nostr.mjs /tmp/nostr-notify/notify_nostr.mjs
+          cd /tmp/nostr-notify
+          npm init -y >/dev/null
+          npm install --no-save nostr-tools
+
+      - name: Publish Nostr deploy notification
+        if: ${{ secrets.DEMO_NOSTR_NOTIFY_NSEC != '' }}
+        continue-on-error: true
+        env:
+          NOSTR_NOTIFY_NSEC: ${{ secrets.DEMO_NOSTR_NOTIFY_NSEC }}
+          DEMO_NOSTR_NOTIFY_RELAYS: ${{ secrets.DEMO_NOSTR_NOTIFY_RELAYS }}
+          DEMO_PUBLIC_HOST: ${{ secrets.DEMO_PUBLIC_HOST }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          GIT_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ "${DEPLOY_RESULT}" == "success" ]]; then
+            STATUS="success"
+          else
+            STATUS="failure"
+          fi
+
+          RELAYS="${DEMO_NOSTR_NOTIFY_RELAYS}"
+          if [[ -z "${RELAYS}" ]]; then
+            RELAYS="ws://${DEMO_PUBLIC_HOST}/relay"
+          fi
+
+          export NOSTR_NOTIFY_RELAYS="${RELAYS}"
+          export NOSTR_NOTIFY_TAGS="deploy,${STATUS},demo"
+          export NOSTR_NOTIFY_CONTENT="bilbil deploy ${STATUS}
+sha: ${GIT_SHA}
+quality: ${QUALITY_RESULT}
+deploy: ${DEPLOY_RESULT}
+run: ${RUN_URL}"
+
+          node /tmp/nostr-notify/notify_nostr.mjs
