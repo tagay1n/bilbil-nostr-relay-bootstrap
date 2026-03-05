@@ -1,10 +1,11 @@
 SHELL := /bin/bash
 
-.PHONY: help quality hooks-install up down status restart logs
+.PHONY: help quality quality-deps hooks-install up down status restart logs
 
 help:
 	@echo "Available targets:"
 	@echo "  make quality      - run repository quality gate"
+	@echo "  make quality-deps - install jq/shellcheck/yamllint for hooks and local checks"
 	@echo "  make hooks-install - install git hooks from .githooks"
 	@echo "  make up           - run local dev stack in foreground (Ctrl+C stops all)"
 	@echo "  make status       - show local dev stack status"
@@ -15,7 +16,11 @@ help:
 quality:
 	./scripts/stack.sh quality
 
+quality-deps:
+	./scripts/install_quality_deps.sh
+
 hooks-install:
+	./scripts/install_quality_deps.sh
 	git config core.hooksPath .githooks
 	chmod +x .githooks/pre-commit
 	@echo "Git hooks installed. pre-commit now runs ./scripts/quality_gate.sh"

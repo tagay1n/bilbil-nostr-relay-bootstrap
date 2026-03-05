@@ -141,10 +141,12 @@ Helpers:
 ```bash
 ./scripts/stack.sh status
 ./scripts/stack.sh down
+make quality-deps
 make hooks-install
 ```
 
-`make hooks-install` enables repo-managed git hooks (`.githooks/`).
+`make quality-deps` installs local tooling used by quality checks (`jq`, `shellcheck`, `yamllint`).
+`make hooks-install` enables repo-managed git hooks (`.githooks/`) and ensures those tools are installed.
 After that, `pre-commit` runs `./scripts/quality_gate.sh` before each commit.
 To bypass once: `SKIP_QUALITY_HOOK=1 git commit ...`
 

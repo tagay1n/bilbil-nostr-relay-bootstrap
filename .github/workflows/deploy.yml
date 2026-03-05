@@ -1,3 +1,4 @@
+---
 name: Deploy
 
 on:
@@ -19,7 +20,7 @@ on:
           - ws
           - wss
       source_sha:
-        description: Commit SHA to deploy (default: current ref SHA)
+        description: "Commit SHA to deploy (default: current ref SHA)"
         required: false
         type: string
 
