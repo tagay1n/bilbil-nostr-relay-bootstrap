@@ -121,6 +121,11 @@ jobs:
           export STACK_ROOT="${DEMO_STACK_ROOT:-/opt/nostr}"
           export WWW_ROOT="${DEMO_WWW_ROOT:-/var/www/coracle}"
 
+          if [[ ! -d "${STACK_ROOT}/src/coracle" || ! -d "${WWW_ROOT}" ]]; then
+            echo "TLS prerequisites not found, running install-http --skip-build first..."
+            ./scripts/stack.sh install-http --skip-build "${PUBLIC_IP}"
+          fi
+
           ./scripts/stack.sh enable-tls-ip "${PUBLIC_IP}" "${ACME_EMAIL}"
           EOSSH
 

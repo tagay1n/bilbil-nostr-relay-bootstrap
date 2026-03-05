@@ -231,6 +231,7 @@ Inputs:
 - `email` (required, ACME registration email)
 - `source_sha` (optional, commit SHA to run)
 It also respects `DEMO_STACK_ROOT` and `DEMO_WWW_ROOT` secrets (same defaults as deploy).
+If TLS prerequisites are missing, it automatically runs `install-http --skip-build` first.
 
 ### Bootstrap workflow
 
