@@ -56,6 +56,31 @@ else
   SUDO="sudo"
 fi
 
+apt_update_with_retry() {
+  local max_attempts="${APT_UPDATE_MAX_ATTEMPTS:-5}"
+  local retry_delay="${APT_UPDATE_RETRY_DELAY_SECONDS:-5}"
+  local attempt
+
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    if ${SUDO} apt-get update -o Acquire::Retries=3; then
+      return 0
+    fi
+
+    if (( attempt < max_attempts )); then
+      echo "apt-get update failed (attempt ${attempt}/${max_attempts}), retrying in ${retry_delay}s..."
+      sleep "${retry_delay}"
+    fi
+  done
+
+  echo "apt-get update failed after ${max_attempts} attempts" >&2
+  return 1
+}
+
+is_pkg_installed() {
+  local pkg="$1"
+  dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q "install ok installed"
+}
+
 run_as_nostr() {
   if [[ "${EUID}" -eq 0 ]]; then
     runuser -u nostr -- "$@"
@@ -65,8 +90,20 @@ run_as_nostr() {
 }
 
 echo "==> Installing base packages"
-${SUDO} apt-get update
-${SUDO} apt-get install -y curl git ca-certificates gnupg build-essential nginx ufw jq
+BASE_PACKAGES=(curl git ca-certificates gnupg build-essential nginx ufw jq)
+MISSING_PACKAGES=()
+for pkg in "${BASE_PACKAGES[@]}"; do
+  if ! is_pkg_installed "${pkg}"; then
+    MISSING_PACKAGES+=("${pkg}")
+  fi
+done
+
+if [[ "${#MISSING_PACKAGES[@]}" -gt 0 ]]; then
+  apt_update_with_retry
+  ${SUDO} apt-get install -y "${MISSING_PACKAGES[@]}"
+else
+  echo "Base packages are already installed."
+fi
 
 NODE_MAJOR=0
 if command -v node >/dev/null 2>&1; then
@@ -75,6 +112,7 @@ fi
 if [[ "${NODE_MAJOR}" -lt 20 ]]; then
   echo "==> Installing Node.js 20.x"
   curl -fsSL https://deb.nodesource.com/setup_20.x | ${SUDO} -E bash -
+  apt_update_with_retry
   ${SUDO} apt-get install -y nodejs
 fi
 
