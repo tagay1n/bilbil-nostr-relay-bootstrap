@@ -62,13 +62,23 @@ install_lego_if_needed() {
       ;;
   esac
 
-  local tag version tmpdir
-  tag="$(curl -fsSL https://api.github.com/repos/go-acme/lego/releases/latest | jq -r '.tag_name')"
-  version="${tag#v}"
+  local release_json asset_url tmpdir
+  release_json="$(curl -fsSL https://api.github.com/repos/go-acme/lego/releases/latest)"
+  asset_url="$(printf '%s' "${release_json}" | jq -r --arg arch "${arch}" '
+    .assets[]
+    | .browser_download_url
+    | select(test("lego.*linux_" + $arch + "\\.tar\\.gz$"))
+    ' | head -n 1)"
+  if [[ -z "${asset_url}" || "${asset_url}" == "null" ]]; then
+    echo "Could not find lego linux_${arch} tar.gz asset in latest release." >&2
+    printf '%s' "${release_json}" | jq -r '.assets[].browser_download_url' >&2 || true
+    exit 1
+  fi
+
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "${tmpdir}"' EXIT
 
-  curl -fsSL -o "${tmpdir}/lego.tar.gz" "https://github.com/go-acme/lego/releases/download/${tag}/lego_${version}_linux_${arch}.tar.gz"
+  curl -fsSL -o "${tmpdir}/lego.tar.gz" "${asset_url}"
   tar -xzf "${tmpdir}/lego.tar.gz" -C "${tmpdir}" lego
   ${SUDO} install -m 0755 "${tmpdir}/lego" /usr/local/bin/lego
 }
