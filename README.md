@@ -206,7 +206,7 @@ Requirements on VPS user:
 
 If repo is absent on VPS, bootstrap tries:
 ```bash
-git clone https://github.com/<owner>/<repo>.git <DEMO_REPO_PATH>
+git clone https://github.com/<owner>/<repo>.git <DEMO_REPO_PATH or /home/<DEMO_SSH_USER>/<repo-name>>
 ```
 For private repos, pre-clone manually on VPS or adjust bootstrap auth strategy.
 

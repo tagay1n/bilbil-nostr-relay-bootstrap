@@ -57,11 +57,21 @@ clone_or_update_repo() {
   local url="$1"
   local dst="$2"
 
-  if [[ -d "${dst}/.git" ]]; then
+  if [[ "${dst}" != /opt/nostr/src/* ]]; then
+    echo "Refusing unsafe clone path: ${dst}" >&2
+    exit 1
+  fi
+
+  if ${SUDO} test -d "${dst}/.git"; then
     echo "==> Updating $(basename "${dst}")"
+    ${SUDO} chown -R nostr:nostr "${dst}"
     run_as_nostr git -C "${dst}" fetch --prune origin
     run_as_nostr git -C "${dst}" pull --ff-only
   else
+    if ${SUDO} test -e "${dst}"; then
+      echo "==> Resetting non-git path $(basename "${dst}")"
+      ${SUDO} rm -rf "${dst}"
+    fi
     echo "==> Cloning $(basename "${dst}")"
     run_as_nostr git clone --depth 1 "${url}" "${dst}"
   fi
@@ -89,7 +99,9 @@ if [[ ! -f /opt/nostr/config/nostr-filter.env ]]; then
 fi
 
 echo "==> Building Coracle static bundle"
-run_as_nostr bash -lc "cd /opt/nostr/src/coracle && sed 's|__PUBLIC_HOST__|${PUBLIC_HOST}|g' '${REPO_DIR}/deploy/templates/coracle.env.local' > .env.local"
+sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" \
+  | ${SUDO} tee /opt/nostr/src/coracle/.env.local >/dev/null
+${SUDO} chown nostr:nostr /opt/nostr/src/coracle/.env.local
 run_as_nostr bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
 
 ${SUDO} rm -rf /var/www/coracle/*

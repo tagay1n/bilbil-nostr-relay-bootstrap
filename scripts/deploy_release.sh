@@ -92,6 +92,14 @@ log() {
   echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"
 }
 
+run_as_root() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    "$@"
+  else
+    sudo -n "$@"
+  fi
+}
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing required command: $1" >&2
@@ -103,7 +111,7 @@ run_as_nostr() {
   if [[ "$(id -u)" -eq 0 ]]; then
     runuser -u nostr -- "$@"
   else
-    sudo -u nostr "$@"
+    sudo -n -u nostr "$@"
   fi
 }
 
@@ -115,6 +123,14 @@ check_prerequisites() {
   require_cmd curl
   require_cmd systemctl
 
+  if [[ "$(id -u)" -ne 0 ]]; then
+    require_cmd sudo
+    if ! sudo -n true >/dev/null 2>&1; then
+      echo "Passwordless sudo is required for deploy_release.sh" >&2
+      exit 1
+    fi
+  fi
+
   if [[ ! -f "${LOCK_FILE}" ]]; then
     echo "Lock file not found: ${LOCK_FILE}" >&2
     exit 1
@@ -125,7 +141,7 @@ check_prerequisites() {
     exit 1
   fi
 
-  if [[ ! -d "${SRC_ROOT}" ]] || [[ ! -d "${CFG_ROOT}" ]]; then
+  if ! run_as_root test -d "${SRC_ROOT}" || ! run_as_root test -d "${CFG_ROOT}"; then
     echo "Missing ${SRC_ROOT} or ${CFG_ROOT}. Bootstrap first with install_http_stack.sh" >&2
     exit 1
   fi
@@ -142,7 +158,8 @@ check_prerequisites() {
     exit 1
   fi
 
-  mkdir -p "${RELEASES_DIR}"
+  run_as_root mkdir -p "${RELEASES_DIR}"
+  run_as_root chown nostr:nostr "${RELEASES_DIR}"
 }
 
 clone_or_update() {
@@ -150,9 +167,18 @@ clone_or_update() {
   local ref="$2"
   local dst="$3"
 
-  if [[ -d "${dst}/.git" ]]; then
+  if [[ "${dst}" != "${SRC_ROOT}/"* ]]; then
+    echo "Refusing unsafe source path: ${dst}" >&2
+    exit 1
+  fi
+
+  if run_as_root test -d "${dst}/.git"; then
+    run_as_root chown -R nostr:nostr "${dst}"
     run_as_nostr git -C "${dst}" fetch --tags --prune origin
   else
+    if run_as_root test -e "${dst}"; then
+      run_as_root rm -rf "${dst}"
+    fi
     run_as_nostr git clone "${repo}" "${dst}"
   fi
 
@@ -160,19 +186,19 @@ clone_or_update() {
 }
 
 ensure_base_configs() {
-  if [[ ! -f "${CFG_ROOT}/nostr-relay.config.json" ]]; then
-    cp "${ROOT_DIR}/deploy/templates/nostr-relay.config.json" "${CFG_ROOT}/nostr-relay.config.json"
-    chown nostr:nostr "${CFG_ROOT}/nostr-relay.config.json"
+  if ! run_as_root test -f "${CFG_ROOT}/nostr-relay.config.json"; then
+    run_as_root cp "${ROOT_DIR}/deploy/templates/nostr-relay.config.json" "${CFG_ROOT}/nostr-relay.config.json"
+    run_as_root chown nostr:nostr "${CFG_ROOT}/nostr-relay.config.json"
   fi
 
-  if [[ ! -f "${CFG_ROOT}/nostr-filter.env" ]]; then
-    cp "${ROOT_DIR}/deploy/templates/nostr-filter.env" "${CFG_ROOT}/nostr-filter.env"
-    chown nostr:nostr "${CFG_ROOT}/nostr-filter.env"
+  if ! run_as_root test -f "${CFG_ROOT}/nostr-filter.env"; then
+    run_as_root cp "${ROOT_DIR}/deploy/templates/nostr-filter.env" "${CFG_ROOT}/nostr-filter.env"
+    run_as_root chown nostr:nostr "${CFG_ROOT}/nostr-filter.env"
   fi
 
-  ln -sfn "${CFG_ROOT}/nostr-relay.config.json" "${SRC_ROOT}/nostr-relay/config.json"
+  run_as_root ln -sfn "${CFG_ROOT}/nostr-relay.config.json" "${SRC_ROOT}/nostr-relay/config.json"
 
-  if jq -e '.allowedPublicKeys | type == "array" and length == 0' "${CFG_ROOT}/nostr-relay.config.json" >/dev/null 2>&1; then
+  if run_as_root jq -e '.allowedPublicKeys | type == "array" and length == 0' "${CFG_ROOT}/nostr-relay.config.json" >/dev/null 2>&1; then
     log "WARNING: allowedPublicKeys is empty; relay will reject writes with current rrainn/nostr-relay behavior"
   fi
 }
@@ -188,34 +214,81 @@ build_nostr_filter() {
 build_coracle() {
   local host="$1"
   local relay_scheme="$2"
+  local tmp_env
 
-  run_as_nostr bash -lc "cd '${SRC_ROOT}/coracle' && sed 's|__PUBLIC_HOST__|${host}|g' '${ROOT_DIR}/deploy/templates/coracle.env.local' > .env.local"
+  tmp_env="$(mktemp)"
+  sed "s|__PUBLIC_HOST__|${host}|g" "${ROOT_DIR}/deploy/templates/coracle.env.local" > "${tmp_env}"
   if [[ "${relay_scheme}" == "wss" ]]; then
-    run_as_nostr bash -lc "cd '${SRC_ROOT}/coracle' && sed -i 's|ws://|wss://|g' .env.local"
+    sed -i 's|ws://|wss://|g' "${tmp_env}"
   fi
+  run_as_root cp "${tmp_env}" "${SRC_ROOT}/coracle/.env.local"
+  run_as_root chown nostr:nostr "${SRC_ROOT}/coracle/.env.local"
+  rm -f "${tmp_env}"
 
   run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
 
-  mkdir -p "${WWW_ROOT}"
-  find "${WWW_ROOT:?}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-  cp -a "${SRC_ROOT}/coracle/dist/." "${WWW_ROOT}/"
-  chown -R www-data:www-data "${WWW_ROOT}"
+  run_as_root mkdir -p "${WWW_ROOT}"
+  run_as_root find "${WWW_ROOT:?}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+  run_as_root cp -a "${SRC_ROOT}/coracle/dist/." "${WWW_ROOT}/"
+  run_as_root chown -R www-data:www-data "${WWW_ROOT}"
 }
 
 restart_services() {
-  systemctl restart "${RELAY_SERVICE}" "${FILTER_SERVICE}"
-  systemctl reload "${NGINX_SERVICE}"
+  run_as_root systemctl restart "${RELAY_SERVICE}" "${FILTER_SERVICE}"
+  run_as_root systemctl reload "${NGINX_SERVICE}"
+}
+
+print_service_diagnostics() {
+  log "Service diagnostics:"
+  run_as_root systemctl --no-pager --full status "${RELAY_SERVICE}" "${FILTER_SERVICE}" "${NGINX_SERVICE}" | sed -n '1,160p' || true
+  log "Recent relay/filter logs:"
+  run_as_root journalctl -u "${RELAY_SERVICE}" -u "${FILTER_SERVICE}" -n 120 --no-pager || true
+}
+
+curl_with_retry() {
+  local url="$1"
+  local accept_header="${2:-}"
+  local attempts="${SMOKE_MAX_ATTEMPTS:-30}"
+  local retry_delay="${SMOKE_RETRY_SECONDS:-2}"
+  local i
+
+  for ((i = 1; i <= attempts; i++)); do
+    if [[ -n "${accept_header}" ]]; then
+      if curl -fsS -H "Accept: ${accept_header}" "${url}" >/dev/null; then
+        return 0
+      fi
+    else
+      if curl -fsS "${url}" >/dev/null; then
+        return 0
+      fi
+    fi
+
+    if (( i < attempts )); then
+      sleep "${retry_delay}"
+    fi
+  done
+
+  return 1
 }
 
 smoke_checks() {
   local base_url="$1"
 
-  systemctl is-active --quiet "${RELAY_SERVICE}"
-  systemctl is-active --quiet "${FILTER_SERVICE}"
-  systemctl is-active --quiet "${NGINX_SERVICE}"
+  run_as_root systemctl is-active --quiet "${RELAY_SERVICE}"
+  run_as_root systemctl is-active --quiet "${FILTER_SERVICE}"
+  run_as_root systemctl is-active --quiet "${NGINX_SERVICE}"
 
-  curl -fsS "${base_url}/" >/dev/null
-  curl -fsS -H 'Accept: application/nostr+json' "${base_url}/relay" >/dev/null
+  if ! curl_with_retry "${base_url}/"; then
+    echo "Smoke check failed: app endpoint ${base_url}/ is not ready" >&2
+    print_service_diagnostics
+    return 1
+  fi
+
+  if ! curl_with_retry "${base_url}/relay" "application/nostr+json"; then
+    echo "Smoke check failed: relay endpoint ${base_url}/relay is not ready" >&2
+    print_service_diagnostics
+    return 1
+  fi
 }
 
 apply_manifest() {
@@ -287,7 +360,7 @@ write_release_manifest() {
 }
 
 rollback_last_success() {
-  if [[ ! -f "${LAST_SUCCESS_FILE}" ]]; then
+  if ! run_as_root test -f "${LAST_SUCCESS_FILE}"; then
     echo "No previous successful release found at ${LAST_SUCCESS_FILE}" >&2
     exit 1
   fi
@@ -302,7 +375,7 @@ on_error() {
   trap - ERR
   echo "Deploy failed with exit code ${code}" >&2
 
-  if [[ "${AUTO_ROLLBACK}" == "true" && -f "${LAST_SUCCESS_FILE}" ]]; then
+  if [[ "${AUTO_ROLLBACK}" == "true" ]] && run_as_root test -f "${LAST_SUCCESS_FILE}"; then
     echo "Attempting automatic rollback to last successful release..." >&2
     if apply_manifest "${LAST_SUCCESS_FILE}" "auto-rollback"; then
       echo "Automatic rollback succeeded" >&2
@@ -339,8 +412,9 @@ write_release_manifest "${TMP_MANIFEST}" "${RELEASE_ID}"
 log "Starting deployment ${RELEASE_ID}"
 apply_manifest "${TMP_MANIFEST}" "deploy"
 
-cp "${TMP_MANIFEST}" "${RELEASES_DIR}/${RELEASE_ID}.json"
-cp "${TMP_MANIFEST}" "${LAST_SUCCESS_FILE}"
+run_as_root cp "${TMP_MANIFEST}" "${RELEASES_DIR}/${RELEASE_ID}.json"
+run_as_root cp "${TMP_MANIFEST}" "${LAST_SUCCESS_FILE}"
+run_as_root chown nostr:nostr "${RELEASES_DIR}/${RELEASE_ID}.json" "${LAST_SUCCESS_FILE}"
 rm -f "${TMP_MANIFEST}"
 
 log "Deployment successful"

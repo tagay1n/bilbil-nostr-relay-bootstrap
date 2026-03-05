@@ -25,7 +25,9 @@ run_as_nostr() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-run_as_nostr bash -lc "cd /opt/nostr/src/coracle && sed 's|__PUBLIC_HOST__|${PUBLIC_HOST}|g' '${REPO_DIR}/deploy/templates/coracle.env.local' > .env.local"
+sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" \
+  | ${SUDO} tee /opt/nostr/src/coracle/.env.local >/dev/null
+${SUDO} chown nostr:nostr /opt/nostr/src/coracle/.env.local
 run_as_nostr bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
 
 ${SUDO} rm -rf /var/www/coracle/*
