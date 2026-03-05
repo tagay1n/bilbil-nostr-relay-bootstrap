@@ -7,6 +7,7 @@ Usage: $0 <public-ipv4> <email>
 
 Issue a short-lived Let's Encrypt certificate for an IPv4 address
 and switch nginx/Coracle to HTTPS/WSS on that IP.
+Requires a host already bootstrapped with ./scripts/stack.sh install-http.
 USAGE
 }
 
@@ -42,6 +43,40 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LEGO_STATE_DIR="/opt/nostr/acme"
 CHALLENGE_WEBROOT="/var/www/certbot"
 CERT_DIR="/etc/letsencrypt/live/${PUBLIC_IP}"
+TMPDIR_CLEANUP=""
+
+cleanup() {
+  if [[ -n "${TMPDIR_CLEANUP:-}" && -d "${TMPDIR_CLEANUP}" ]]; then
+    rm -rf "${TMPDIR_CLEANUP}"
+  fi
+}
+trap cleanup EXIT
+
+require_prerequisites() {
+  local missing=()
+
+  for cmd in nginx systemctl; do
+    if ! command -v "${cmd}" >/dev/null 2>&1; then
+      missing+=("${cmd}")
+    fi
+  done
+
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    echo "Missing required commands: ${missing[*]}" >&2
+    echo "Run this script on the bootstrapped VPS (after install-http)." >&2
+    exit 1
+  fi
+
+  if [[ ! -d /etc/nginx/sites-available || ! -d /etc/nginx/sites-enabled ]]; then
+    echo "Missing nginx site directories in /etc/nginx. Bootstrap first with install-http." >&2
+    exit 1
+  fi
+
+  if [[ ! -d /opt/nostr/src/coracle || ! -d /var/www/coracle ]]; then
+    echo "Missing Coracle directories under /opt/nostr/src or /var/www. Bootstrap first with install-http." >&2
+    exit 1
+  fi
+}
 
 install_lego_if_needed() {
   if command -v lego >/dev/null 2>&1 && lego --help 2>&1 | grep -q -- "--profile"; then
@@ -76,11 +111,13 @@ install_lego_if_needed() {
   fi
 
   tmpdir="$(mktemp -d)"
-  trap 'rm -rf "${tmpdir}"' EXIT
+  TMPDIR_CLEANUP="${tmpdir}"
 
   curl -fsSL -o "${tmpdir}/lego.tar.gz" "${asset_url}"
   tar -xzf "${tmpdir}/lego.tar.gz" -C "${tmpdir}" lego
   ${SUDO} install -m 0755 "${tmpdir}/lego" /usr/local/bin/lego
+  rm -rf "${tmpdir}"
+  TMPDIR_CLEANUP=""
 }
 
 issue_or_renew_ip_cert() {
@@ -159,6 +196,7 @@ rebuild_coracle_wss() {
   ${SUDO} systemctl reload nginx
 }
 
+require_prerequisites
 install_lego_if_needed
 ensure_http_challenge_route
 issue_or_renew_ip_cert
