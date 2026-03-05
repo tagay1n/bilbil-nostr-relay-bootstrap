@@ -18,10 +18,8 @@ fi
 
 if [[ "${EUID}" -eq 0 ]]; then
   SUDO=""
-  AS_ROOT_USER="root"
 else
   SUDO="sudo"
-  AS_ROOT_USER="${USER}"
 fi
 
 run_as_nostr() {

@@ -14,7 +14,7 @@ curl -fsS "${BASE_URL}/" >/dev/null && echo "OK"
 
 echo "==> Relay NIP-11"
 if curl -fsS -H 'Accept: application/nostr+json' "${BASE_URL}/relay" >/tmp/bylbil-nip11.json 2>/dev/null; then
-  cat /tmp/bylbil-nip11.json | jq .
+  jq . /tmp/bylbil-nip11.json
 else
   echo "nginx relay path not available, trying direct local relay endpoint..."
   if [[ "${HOST}" == *:* ]]; then

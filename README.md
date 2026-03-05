@@ -136,7 +136,12 @@ Helpers:
 ```bash
 ./scripts/stack.sh status
 ./scripts/stack.sh down
+make hooks-install
 ```
+
+`make hooks-install` enables repo-managed git hooks (`.githooks/`).
+After that, `pre-commit` runs `./scripts/quality_gate.sh` before each commit.
+To bypass once: `SKIP_QUALITY_HOOK=1 git commit ...`
 
 Logs:
 - `.dev/logs/nostr-relay.log`

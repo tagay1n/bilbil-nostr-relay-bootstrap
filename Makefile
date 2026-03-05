@@ -1,10 +1,11 @@
 SHELL := /bin/bash
 
-.PHONY: help quality up down status restart logs
+.PHONY: help quality hooks-install up down status restart logs
 
 help:
 	@echo "Available targets:"
 	@echo "  make quality      - run repository quality gate"
+	@echo "  make hooks-install - install git hooks from .githooks"
 	@echo "  make up           - run local dev stack in foreground (Ctrl+C stops all)"
 	@echo "  make status       - show local dev stack status"
 	@echo "  make down         - stop local dev stack"
@@ -13,6 +14,11 @@ help:
 
 quality:
 	./scripts/stack.sh quality
+
+hooks-install:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit
+	@echo "Git hooks installed. pre-commit now runs ./scripts/quality_gate.sh"
 
 up:
 	./scripts/stack.sh up

@@ -197,7 +197,7 @@ build_coracle() {
   run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
 
   mkdir -p "${WWW_ROOT}"
-  rm -rf "${WWW_ROOT}"/*
+  find "${WWW_ROOT:?}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
   cp -a "${SRC_ROOT}/coracle/dist/." "${WWW_ROOT}/"
   chown -R www-data:www-data "${WWW_ROOT}"
 }

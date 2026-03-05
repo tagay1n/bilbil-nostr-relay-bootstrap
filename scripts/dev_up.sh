@@ -136,6 +136,7 @@ start_foreground() {
     echo "Started ${name} (pid ${pid})"
   }
 
+  # shellcheck disable=SC2317
   cleanup() {
     for pid in "${pids[@]}"; do
       kill "${pid}" >/dev/null 2>&1 || true
