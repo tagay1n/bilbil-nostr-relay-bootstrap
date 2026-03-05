@@ -177,7 +177,7 @@ Workflows:
 - `DEMO_SSH_PORT` (optional, defaults to `22`)
 - `DEMO_SSH_USER`
 - `DEMO_SSH_KEY` (private key used by Actions)
-- `DEMO_REPO_PATH` (path of this repo clone on VPS)
+- `DEMO_REPO_PATH` (optional, defaults to `/home/<DEMO_SSH_USER>/<repo-name>`)
 - `DEMO_PUBLIC_HOST` (optional, IP/domain used by Coracle defaults; falls back to `DEMO_SSH_HOST`)
 - `DEMO_RELAY_SCHEME` (optional: `ws` or `wss`, default `ws`)
 - `DEMO_STACK_ROOT` (optional, default `/opt/nostr`)

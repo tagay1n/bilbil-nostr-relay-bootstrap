@@ -36,11 +36,14 @@ jobs:
           DEMO_SSH_PORT: ${{ secrets.DEMO_SSH_PORT }}
           DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
           DEMO_REPO_PATH: ${{ secrets.DEMO_REPO_PATH }}
+          GH_REPOSITORY: ${{ github.repository }}
           DEMO_STACK_ROOT: ${{ secrets.DEMO_STACK_ROOT }}
           DEMO_WWW_ROOT: ${{ secrets.DEMO_WWW_ROOT }}
         run: |
+          REPO_NAME="${GH_REPOSITORY#*/}"
+          REPO_PATH="${DEMO_REPO_PATH:-/home/${DEMO_SSH_USER}/${REPO_NAME}}"
           ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
-            "DEMO_REPO_PATH=${DEMO_REPO_PATH@Q} \
+            "DEMO_REPO_PATH=${REPO_PATH@Q} \
              DEMO_STACK_ROOT=${DEMO_STACK_ROOT@Q} \
              DEMO_WWW_ROOT=${DEMO_WWW_ROOT@Q} \
              bash -s" <<'EOSSH'

@@ -73,6 +73,9 @@ jobs:
           GIT_SHA: ${{ github.sha }}
           GH_REPOSITORY: ${{ github.repository }}
         run: |
+          REPO_NAME="${GH_REPOSITORY#*/}"
+          REPO_PATH="${DEMO_REPO_PATH:-/home/${DEMO_SSH_USER}/${REPO_NAME}}"
+
           PUBLIC_HOST="${INPUT_PUBLIC_HOST}"
           if [[ -z "${PUBLIC_HOST}" ]]; then
             PUBLIC_HOST="${DEMO_PUBLIC_HOST_SECRET}"
@@ -87,7 +90,7 @@ jobs:
           fi
 
           ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
-            "DEMO_REPO_PATH=${DEMO_REPO_PATH@Q} \
+            "DEMO_REPO_PATH=${REPO_PATH@Q} \
              GIT_SHA=${GIT_SHA@Q} \
              GH_REPOSITORY=${GH_REPOSITORY@Q} \
              PUBLIC_HOST=${PUBLIC_HOST@Q} \
