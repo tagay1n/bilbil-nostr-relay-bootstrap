@@ -1,4 +1,4 @@
-name: Deploy Demo
+name: Deploy
 
 on:
   push:
@@ -6,24 +6,12 @@ on:
       - main
 
 concurrency:
-  group: deploy-demo
+  group: deploy
   cancel-in-progress: false
 
 jobs:
   quality:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck jq yamllint
-
-      - name: Run quality gate
-        run: ./scripts/stack.sh quality
+    uses: ./.github/workflows/ci.yml
 
   deploy:
     needs: quality

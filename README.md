@@ -167,9 +167,9 @@ Logs:
 
 Workflows:
 - `.github/workflows/ci.yml`
-- `.github/workflows/deploy-demo.yml`
+- `.github/workflows/deploy.yml`
 - `.github/workflows/rollback-demo.yml`
-- `.github/workflows/bootstrap-demo.yml` (manual first-time bootstrap + deploy)
+- `.github/workflows/bootstrap.yml` (manual first-time bootstrap + deploy)
 
 ### Required demo secrets
 
@@ -185,12 +185,12 @@ Workflows:
 - `DEMO_NOSTR_NOTIFY_NSEC` (optional, deploy bot private key in `nsec1...` or hex)
 - `DEMO_NOSTR_NOTIFY_RELAYS` (optional, comma-separated relay URLs for notifications)
 
-`deploy-demo.yml` runs quality gate first, then deploys on each push to `main`.
+`deploy.yml` requires CI quality gate (`ci.yml`) and then deploys on each push to `main`.
 If `DEMO_NOSTR_NOTIFY_NSEC` is set, deploy and rollback workflow runs publish status notes to Nostr.
 
 ### Bootstrap workflow
 
-Use `Bootstrap Demo` workflow manually for first-time VPS setup or re-bootstrap.
+Use `Bootstrap` workflow manually for first-time VPS setup or re-bootstrap.
 It performs:
 - base install (`install_http_stack.sh`)
 - pinned release deploy (`deploy_release.sh`)
