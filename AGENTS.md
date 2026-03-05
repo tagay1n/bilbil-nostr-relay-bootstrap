@@ -76,8 +76,7 @@ Local dev stack (no systemd/nginx):
 
 CI/CD workflows:
 - `.github/workflows/ci.yml` (quality gates on PR; reusable by deploy/bootstrap)
-- `.github/workflows/deploy.yml` (auto-deploy on main)
-- `.github/workflows/rollback-demo.yml` (manual rollback to last success)
+- `.github/workflows/deploy.yml` (auto-deploy on main + manual dispatch)
 - `.github/workflows/bootstrap.yml` (manual bootstrap/install + deploy)
 
 Nostr notifications:

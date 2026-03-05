@@ -16,7 +16,7 @@ Local commands:
   quality                     Run repo quality checks
 
 Deploy commands:
-  install-http <host-or-ip>   Install VPS HTTP/WS stack
+  install-http [args...]      Install VPS HTTP/WS stack (e.g. --skip-build <host-or-ip>)
   rebuild-coracle <host>      Rebuild Coracle for host/domain
   enable-tls <domain> <email> Enable TLS and switch to HTTPS/WSS
   smoke-test <host>           Run smoke checks

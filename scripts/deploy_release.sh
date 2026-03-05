@@ -204,11 +204,11 @@ ensure_base_configs() {
 }
 
 build_nostr_relay() {
-  run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/nostr-relay"'" && npm ci && npm run build'
+  run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/nostr-relay"'" && npm ci --no-audit --no-fund && npm run build'
 }
 
 build_nostr_filter() {
-  run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/nostr-filter"'" && npm ci && npx tsc'
+  run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/nostr-filter"'" && npm ci --no-audit --no-fund && npx tsc'
 }
 
 build_coracle() {
@@ -250,17 +250,29 @@ curl_with_retry() {
   local accept_header="${2:-}"
   local attempts="${SMOKE_MAX_ATTEMPTS:-30}"
   local retry_delay="${SMOKE_RETRY_SECONDS:-2}"
+  local warned="false"
   local i
 
   for ((i = 1; i <= attempts; i++)); do
     if [[ -n "${accept_header}" ]]; then
-      if curl -fsS -H "Accept: ${accept_header}" "${url}" >/dev/null; then
+      if curl -fsS --connect-timeout 3 --max-time 8 -H "Accept: ${accept_header}" "${url}" >/dev/null 2>&1; then
+        if [[ "${warned}" == "true" ]]; then
+          log "Smoke endpoint recovered on attempt ${i}: ${url}"
+        fi
         return 0
       fi
     else
-      if curl -fsS "${url}" >/dev/null; then
+      if curl -fsS --connect-timeout 3 --max-time 8 "${url}" >/dev/null 2>&1; then
+        if [[ "${warned}" == "true" ]]; then
+          log "Smoke endpoint recovered on attempt ${i}: ${url}"
+        fi
         return 0
       fi
+    fi
+
+    if [[ "${warned}" == "false" ]]; then
+      log "Smoke endpoint not ready yet, retrying: ${url}"
+      warned="true"
     fi
 
     if (( i < attempts )); then
@@ -268,6 +280,7 @@ curl_with_retry() {
     fi
   done
 
+  log "Smoke endpoint failed after ${attempts} attempts: ${url}"
   return 1
 }
 

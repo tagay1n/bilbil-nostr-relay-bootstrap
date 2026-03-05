@@ -44,6 +44,11 @@ cd bılbıl
 ```
 
 If host argument is omitted, script tries to auto-detect public IP.
+For CI/bootstrap where deploy runs immediately after install, you can skip initial builds:
+
+```bash
+./scripts/stack.sh install-http --skip-build <SERVER_IP>
+```
 
 After install:
 
@@ -173,7 +178,6 @@ Logs:
 Workflows:
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy.yml`
-- `.github/workflows/rollback-demo.yml`
 - `.github/workflows/bootstrap.yml` (manual first-time bootstrap + deploy)
 
 ### Required demo secrets
@@ -190,14 +194,15 @@ Workflows:
 - `DEMO_NOSTR_NOTIFY_NSEC` (optional, deploy bot private key in `nsec1...` or hex)
 - `DEMO_NOSTR_NOTIFY_RELAYS` (optional, comma-separated relay URLs for notifications)
 
-`deploy.yml` requires CI quality gate (`ci.yml`) and then deploys on each push to `main`.
-If `DEMO_NOSTR_NOTIFY_NSEC` is set, deploy and rollback workflow runs publish status notes to Nostr.
+`deploy.yml` requires CI quality gate (`ci.yml`) and deploys on each push to `main`.
+It can also be run manually via `workflow_dispatch` with optional overrides (`public_host`, `relay_scheme`, `source_sha`).
+If `DEMO_NOSTR_NOTIFY_NSEC` is set, deploy runs publish status notes to Nostr.
 
 ### Bootstrap workflow
 
 Use `Bootstrap` workflow manually for first-time VPS setup or re-bootstrap.
 It performs:
-- base install (`install_http_stack.sh`)
+- base install (`install_http_stack.sh --skip-build`)
 - pinned release deploy (`deploy_release.sh`)
 
 Requirements on VPS user:

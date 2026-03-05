@@ -4,6 +4,24 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      public_host:
+        description: Public host/IP override for Coracle and relay URL
+        required: false
+        type: string
+      relay_scheme:
+        description: Relay scheme override for Coracle defaults
+        required: false
+        default: ws
+        type: choice
+        options:
+          - ws
+          - wss
+      source_sha:
+        description: Commit SHA to deploy (default: current ref SHA)
+        required: false
+        type: string
 
 concurrency:
   group: deploy
@@ -23,9 +41,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Start SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEMO_SSH_KEY }}
+        env:
+          DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+        run: |
+          eval "$(ssh-agent -s)"
+          ssh-add - <<< "${DEMO_SSH_KEY}"
+          echo "SSH_AUTH_SOCK=${SSH_AUTH_SOCK}" >> "${GITHUB_ENV}"
+          echo "SSH_AGENT_PID=${SSH_AGENT_PID}" >> "${GITHUB_ENV}"
 
       - name: Add host key
         env:
@@ -46,18 +68,35 @@ jobs:
           DEMO_RELAY_SCHEME: ${{ secrets.DEMO_RELAY_SCHEME }}
           DEMO_STACK_ROOT: ${{ secrets.DEMO_STACK_ROOT }}
           DEMO_WWW_ROOT: ${{ secrets.DEMO_WWW_ROOT }}
-          GIT_SHA: ${{ github.sha }}
+          INPUT_PUBLIC_HOST: ${{ github.event.inputs.public_host }}
+          INPUT_RELAY_SCHEME: ${{ github.event.inputs.relay_scheme }}
+          INPUT_SOURCE_SHA: ${{ github.event.inputs.source_sha }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           REPO_NAME="${GH_REPOSITORY#*/}"
           REPO_PATH="${DEMO_REPO_PATH:-/home/${DEMO_SSH_USER}/${REPO_NAME}}"
-          PUBLIC_HOST="${DEMO_PUBLIC_HOST:-$DEMO_SSH_HOST}"
+          PUBLIC_HOST="${INPUT_PUBLIC_HOST}"
+          if [[ -z "${PUBLIC_HOST}" ]]; then
+            PUBLIC_HOST="${DEMO_PUBLIC_HOST:-$DEMO_SSH_HOST}"
+          fi
+
+          RELAY_SCHEME="${INPUT_RELAY_SCHEME}"
+          if [[ -z "${RELAY_SCHEME}" ]]; then
+            RELAY_SCHEME="${DEMO_RELAY_SCHEME:-ws}"
+          fi
+
+          GIT_SHA="${INPUT_SOURCE_SHA}"
+          if [[ -z "${GIT_SHA}" ]]; then
+            GIT_SHA="${GITHUB_SHA}"
+          fi
+
           ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
             "DEMO_REPO_PATH=${REPO_PATH@Q} \
              GIT_SHA=${GIT_SHA@Q} \
              DEMO_STACK_ROOT=${DEMO_STACK_ROOT@Q} \
              DEMO_WWW_ROOT=${DEMO_WWW_ROOT@Q} \
              DEMO_PUBLIC_HOST=${PUBLIC_HOST@Q} \
-             DEMO_RELAY_SCHEME=${DEMO_RELAY_SCHEME@Q} \
+             DEMO_RELAY_SCHEME=${RELAY_SCHEME@Q} \
              bash -s" <<'EOSSH'
           set -euo pipefail
 
@@ -76,6 +115,13 @@ jobs:
             --relay-scheme "${RELAY_SCHEME}" \
             --source-sha "${GIT_SHA}"
           EOSSH
+
+      - name: Stop SSH agent
+        if: always()
+        run: |
+          if [[ -n "${SSH_AGENT_PID:-}" ]]; then
+            ssh-agent -k >/dev/null 2>&1 || true
+          fi
 
   notify:
     needs:

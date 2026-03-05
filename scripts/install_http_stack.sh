@@ -4,7 +4,41 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-PUBLIC_HOST="${1:-}"
+usage() {
+  cat <<USAGE
+Usage: $0 [--skip-build] [host-or-ip]
+
+Options:
+  --skip-build   Skip component builds/start; useful before immediate deploy
+USAGE
+}
+
+SKIP_BUILD="false"
+PUBLIC_HOST=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-build)
+      SKIP_BUILD="true"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      if [[ -z "${PUBLIC_HOST}" ]]; then
+        PUBLIC_HOST="$1"
+        shift
+      else
+        echo "Unknown argument: $1" >&2
+        usage
+        exit 1
+      fi
+      ;;
+  esac
+done
+
 if [[ -z "${PUBLIC_HOST}" ]]; then
   PUBLIC_HOST="$(curl -4 -fsS https://ifconfig.me 2>/dev/null || true)"
 fi
@@ -81,38 +115,46 @@ clone_or_update_repo https://github.com/rrainn/nostr-relay.git /opt/nostr/src/no
 clone_or_update_repo https://github.com/imksoo/nostr-filter.git /opt/nostr/src/nostr-filter
 clone_or_update_repo https://github.com/coracle-social/coracle.git /opt/nostr/src/coracle
 
-echo "==> Building nostr-relay"
-run_as_nostr bash -lc 'cd /opt/nostr/src/nostr-relay && npm ci && npm run build'
-
 if [[ ! -f /opt/nostr/config/nostr-relay.config.json ]]; then
   ${SUDO} cp "${REPO_DIR}/deploy/templates/nostr-relay.config.json" /opt/nostr/config/nostr-relay.config.json
   ${SUDO} chown nostr:nostr /opt/nostr/config/nostr-relay.config.json
 fi
 ${SUDO} ln -sfn /opt/nostr/config/nostr-relay.config.json /opt/nostr/src/nostr-relay/config.json
 
-echo "==> Building nostr-filter"
-run_as_nostr bash -lc 'cd /opt/nostr/src/nostr-filter && npm ci && npx tsc'
-
 if [[ ! -f /opt/nostr/config/nostr-filter.env ]]; then
   ${SUDO} cp "${REPO_DIR}/deploy/templates/nostr-filter.env" /opt/nostr/config/nostr-filter.env
   ${SUDO} chown nostr:nostr /opt/nostr/config/nostr-filter.env
 fi
 
-echo "==> Building Coracle static bundle"
-sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" \
-  | ${SUDO} tee /opt/nostr/src/coracle/.env.local >/dev/null
-${SUDO} chown nostr:nostr /opt/nostr/src/coracle/.env.local
-run_as_nostr bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+if [[ "${SKIP_BUILD}" == "true" ]]; then
+  echo "==> Skipping component builds (--skip-build)"
+else
+  echo "==> Building nostr-relay"
+  run_as_nostr bash -lc 'cd /opt/nostr/src/nostr-relay && npm ci --no-audit --no-fund && npm run build'
 
-${SUDO} rm -rf /var/www/coracle/*
-${SUDO} cp -a /opt/nostr/src/coracle/dist/. /var/www/coracle/
-${SUDO} chown -R www-data:www-data /var/www/coracle
+  echo "==> Building nostr-filter"
+  run_as_nostr bash -lc 'cd /opt/nostr/src/nostr-filter && npm ci --no-audit --no-fund && npx tsc'
+
+  echo "==> Building Coracle static bundle"
+  sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" \
+    | ${SUDO} tee /opt/nostr/src/coracle/.env.local >/dev/null
+  ${SUDO} chown nostr:nostr /opt/nostr/src/coracle/.env.local
+  run_as_nostr bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+
+  ${SUDO} rm -rf /var/www/coracle/*
+  ${SUDO} cp -a /opt/nostr/src/coracle/dist/. /var/www/coracle/
+  ${SUDO} chown -R www-data:www-data /var/www/coracle
+fi
 
 echo "==> Installing systemd units"
 ${SUDO} cp "${REPO_DIR}/deploy/systemd/nostr-relay.service" /etc/systemd/system/nostr-relay.service
 ${SUDO} cp "${REPO_DIR}/deploy/systemd/nostr-filter.service" /etc/systemd/system/nostr-filter.service
 ${SUDO} systemctl daemon-reload
-${SUDO} systemctl enable --now nostr-relay.service nostr-filter.service
+if [[ "${SKIP_BUILD}" == "true" ]]; then
+  ${SUDO} systemctl enable nostr-relay.service nostr-filter.service
+else
+  ${SUDO} systemctl enable --now nostr-relay.service nostr-filter.service
+fi
 
 echo "==> Configuring nginx"
 ${SUDO} cp "${REPO_DIR}/deploy/nginx/bilbil-limits.conf" /etc/nginx/conf.d/bilbil-limits.conf
@@ -142,6 +184,9 @@ echo "Relay WS URL: ws://${PUBLIC_HOST}/relay"
 echo "Relay NIP-11: curl -H 'Accept: application/nostr+json' http://${PUBLIC_HOST}/relay"
 echo "Relay logs: sudo journalctl -u nostr-relay -f"
 echo "Filter logs: sudo journalctl -u nostr-filter -f"
+if [[ "${SKIP_BUILD}" == "true" ]]; then
+  echo "Next step: run deploy (stack is installed, builds are skipped)."
+fi
 echo
 echo "IMPORTANT:"
 echo "  rrainn/nostr-relay currently requires write pubkeys in allowedPublicKeys."
