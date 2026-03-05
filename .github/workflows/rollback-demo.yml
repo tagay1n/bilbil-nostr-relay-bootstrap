@@ -81,13 +81,15 @@ jobs:
           NOSTR_NOTIFY_NSEC: ${{ secrets.DEMO_NOSTR_NOTIFY_NSEC }}
           DEMO_NOSTR_NOTIFY_RELAYS: ${{ secrets.DEMO_NOSTR_NOTIFY_RELAYS }}
           DEMO_PUBLIC_HOST: ${{ secrets.DEMO_PUBLIC_HOST }}
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
           ROLLBACK_RESULT: ${{ steps.rollback_step.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           STATUS="${ROLLBACK_RESULT}"
           RELAYS="${DEMO_NOSTR_NOTIFY_RELAYS}"
           if [[ -z "${RELAYS}" ]]; then
-            RELAYS="ws://${DEMO_PUBLIC_HOST}/relay"
+            PUBLIC_HOST="${DEMO_PUBLIC_HOST:-$DEMO_SSH_HOST}"
+            RELAYS="ws://${PUBLIC_HOST}/relay"
           fi
 
           export NOSTR_NOTIFY_RELAYS="${RELAYS}"

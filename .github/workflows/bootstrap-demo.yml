@@ -78,8 +78,7 @@ jobs:
             PUBLIC_HOST="${DEMO_PUBLIC_HOST_SECRET}"
           fi
           if [[ -z "${PUBLIC_HOST}" ]]; then
-            echo "Missing public host. Provide workflow input 'public_host' or set DEMO_PUBLIC_HOST secret." >&2
-            exit 1
+            PUBLIC_HOST="${DEMO_SSH_HOST}"
           fi
 
           RELAY_SCHEME="${INPUT_RELAY_SCHEME}"

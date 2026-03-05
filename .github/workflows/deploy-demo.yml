@@ -59,12 +59,13 @@ jobs:
           DEMO_WWW_ROOT: ${{ secrets.DEMO_WWW_ROOT }}
           GIT_SHA: ${{ github.sha }}
         run: |
+          PUBLIC_HOST="${DEMO_PUBLIC_HOST:-$DEMO_SSH_HOST}"
           ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
             "DEMO_REPO_PATH=${DEMO_REPO_PATH@Q} \
              GIT_SHA=${GIT_SHA@Q} \
              DEMO_STACK_ROOT=${DEMO_STACK_ROOT@Q} \
              DEMO_WWW_ROOT=${DEMO_WWW_ROOT@Q} \
-             DEMO_PUBLIC_HOST=${DEMO_PUBLIC_HOST@Q} \
+             DEMO_PUBLIC_HOST=${PUBLIC_HOST@Q} \
              DEMO_RELAY_SCHEME=${DEMO_RELAY_SCHEME@Q} \
              bash -s" <<'EOSSH'
           set -euo pipefail
@@ -119,6 +120,7 @@ jobs:
           NOSTR_NOTIFY_NSEC: ${{ secrets.DEMO_NOSTR_NOTIFY_NSEC }}
           DEMO_NOSTR_NOTIFY_RELAYS: ${{ secrets.DEMO_NOSTR_NOTIFY_RELAYS }}
           DEMO_PUBLIC_HOST: ${{ secrets.DEMO_PUBLIC_HOST }}
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
           GIT_SHA: ${{ github.sha }}
@@ -132,7 +134,8 @@ jobs:
 
           RELAYS="${DEMO_NOSTR_NOTIFY_RELAYS}"
           if [[ -z "${RELAYS}" ]]; then
-            RELAYS="ws://${DEMO_PUBLIC_HOST}/relay"
+            PUBLIC_HOST="${DEMO_PUBLIC_HOST:-$DEMO_SSH_HOST}"
+            RELAYS="ws://${PUBLIC_HOST}/relay"
           fi
 
           export NOSTR_NOTIFY_RELAYS="${RELAYS}"
