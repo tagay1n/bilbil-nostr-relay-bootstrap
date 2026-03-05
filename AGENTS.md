@@ -23,9 +23,11 @@ Public endpoints (HTTP mode):
 
 ## Policy Decisions (MVP)
 
-- Access model: open write
-- `kind:1` text notes allowed only with `#татарча` in content
-- non-`kind:1` events are allowed (metadata/reactions/etc.)
+- Intended access model: open write
+- Current relay implementation constraint:
+  - writes are accepted only for pubkeys listed in `allowedPublicKeys` in relay config
+  - backend relay write kinds are limited (`0`, `1`, `5`)
+- `kind:1` text notes allowed only with `#татарча` in content (filter layer)
 - anti-abuse baseline:
   - nginx rate/connection limits on `/relay`
   - filter payload size cap
@@ -33,13 +35,14 @@ Public endpoints (HTTP mode):
 
 ## Repo Contents
 
-- Installer: `deploy/scripts/install_http_stack.sh`
-- Coracle host/domain rebuild: `deploy/scripts/rebuild_coracle.sh`
-- TLS switch: `deploy/scripts/enable_tls.sh`
-- Smoke test: `deploy/scripts/smoke_test.sh`
-- Deterministic deploy: `deploy/scripts/deploy_release.sh`
-- Rollback: `deploy/scripts/rollback_last_success.sh`
-- Lock updater: `deploy/scripts/update_lock.sh`
+- Main entrypoint: `scripts/stack.sh`
+- Installer: `scripts/install_http_stack.sh`
+- Coracle host/domain rebuild: `scripts/rebuild_coracle.sh`
+- TLS switch: `scripts/enable_tls.sh`
+- Smoke test: `scripts/smoke_test.sh`
+- Deterministic deploy: `scripts/deploy_release.sh`
+- Rollback: `scripts/rollback_last_success.sh`
+- Lock updater: `scripts/update_lock.sh`
 - Version lock: `deploy/versions.lock.json`
 - Systemd units: `deploy/systemd/`
 - Nginx configs: `deploy/nginx/`
@@ -49,7 +52,7 @@ Public endpoints (HTTP mode):
 
 Install stack:
 ```bash
-./deploy/scripts/install_http_stack.sh <SERVER_IP>
+./scripts/stack.sh install-http <SERVER_IP>
 ```
 
 Status/logs:
@@ -61,14 +64,14 @@ sudo journalctl -u nostr-filter -f
 
 Smoke test:
 ```bash
-./deploy/scripts/smoke_test.sh <host>
+./scripts/stack.sh smoke-test <host>
 ```
 
 Local dev stack (no systemd/nginx):
 ```bash
-./scripts/dev_up.sh
-./scripts/dev_status.sh
-./scripts/dev_down.sh
+./scripts/stack.sh up
+./scripts/stack.sh status
+./scripts/stack.sh down
 ```
 
 CI/CD workflows:
@@ -85,7 +88,7 @@ Nostr notifications:
 
 When domain is ready:
 ```bash
-./deploy/scripts/enable_tls.sh <domain> <email>
+./scripts/stack.sh enable-tls <domain> <email>
 ```
 
 After migration:

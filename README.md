@@ -1,4 +1,4 @@
-# Bilbil MVP (Nostr Relay + Filter + Coracle)
+# Bılbıl MVP (Nostr Relay + Filter + Coracle)
 
 This repo contains deployment tooling for a test-first stack on Ubuntu 22:
 
@@ -9,21 +9,28 @@ This repo contains deployment tooling for a test-first stack on Ubuntu 22:
 
 ## Policy (current MVP)
 
-- Open write (no pubkey allowlist)
-- `kind:1` text notes are accepted only if note content includes `#татарча`
-- Non-`kind:1` events are allowed (metadata, reactions, etc.)
+- Intended policy:
+  - open write
+  - `kind:1` text notes accepted only if note content includes `#татарча`
+  - non-`kind:1` events allowed (metadata, reactions, etc.)
+
+- Current upstream relay constraints (`rrainn/nostr-relay`):
+  - writes are accepted only for pubkeys listed in `allowedPublicKeys`
+  - supported write kinds are limited by relay code (`0`, `1`, `5`)
+  - so "open write" and "all non-kind:1 allowed" are not fully met without patching/replacing backend relay
 
 Note: the current rule checks note content with a regex. In most clients, hashtags appear in content, so this works for MVP.
 
 ## Files
 
-- Installer: `deploy/scripts/install_http_stack.sh`
-- Coracle rebuild (host/domain change): `deploy/scripts/rebuild_coracle.sh`
-- TLS switch (Let's Encrypt): `deploy/scripts/enable_tls.sh`
-- Smoke test: `deploy/scripts/smoke_test.sh`
-- Deterministic deploy: `deploy/scripts/deploy_release.sh`
-- Manual rollback: `deploy/scripts/rollback_last_success.sh`
-- Lock updater: `deploy/scripts/update_lock.sh`
+- Main entrypoint: `scripts/stack.sh`
+- Installer: `scripts/install_http_stack.sh`
+- Coracle rebuild (host/domain change): `scripts/rebuild_coracle.sh`
+- TLS switch (Let's Encrypt): `scripts/enable_tls.sh`
+- Smoke test: `scripts/smoke_test.sh`
+- Deterministic deploy: `scripts/deploy_release.sh`
+- Manual rollback: `scripts/rollback_last_success.sh`
+- Lock updater: `scripts/update_lock.sh`
 - Locked upstream versions: `deploy/versions.lock.json`
 
 ## 1) Install on VPS (HTTP + WS)
@@ -31,9 +38,9 @@ Note: the current rule checks note content with a regex. In most clients, hashta
 On your VPS:
 
 ```bash
-git clone <this-repo-url> bilbil
-cd bilbil
-./deploy/scripts/install_http_stack.sh <SERVER_IP>
+git clone <this-repo-url> bılbıl
+cd bılbıl
+./scripts/stack.sh install-http <SERVER_IP>
 ```
 
 If host argument is omitted, script tries to auto-detect public IP.
@@ -53,7 +60,7 @@ curl -H 'Accept: application/nostr+json' http://<SERVER_IP>/relay
 When moving from IP to domain (or any host change):
 
 ```bash
-./deploy/scripts/rebuild_coracle.sh <new-host>
+./scripts/stack.sh rebuild-coracle <new-host>
 ```
 
 This updates Coracle defaults to use:
@@ -64,7 +71,7 @@ This updates Coracle defaults to use:
 ## 3) Enable TLS later (domain required)
 
 ```bash
-./deploy/scripts/enable_tls.sh <domain> <email>
+./scripts/stack.sh enable-tls <domain> <email>
 ```
 
 This does:
@@ -84,19 +91,19 @@ After that use:
 sudo systemctl status nostr-relay nostr-filter nginx
 sudo journalctl -u nostr-relay -f
 sudo journalctl -u nostr-filter -f
-./deploy/scripts/smoke_test.sh <host>
+./scripts/stack.sh smoke-test <host>
 ```
 
 Update pinned upstream versions:
 
 ```bash
-./deploy/scripts/update_lock.sh
+./scripts/stack.sh update-lock
 ```
 
 Deploy pinned release manually:
 
 ```bash
-./deploy/scripts/deploy_release.sh \
+./scripts/stack.sh deploy \
   --env demo \
   --public-host <host-or-domain> \
   --relay-scheme ws \
@@ -106,7 +113,7 @@ Deploy pinned release manually:
 Manual rollback to last successful release:
 
 ```bash
-./deploy/scripts/rollback_last_success.sh --env demo
+./scripts/stack.sh rollback --env demo
 ```
 
 ## Local dev mode (single machine, no systemd/nginx)
@@ -114,18 +121,21 @@ Manual rollback to last successful release:
 For quick testing all components locally:
 
 ```bash
-./scripts/dev_up.sh
+./scripts/stack.sh up
 ```
 
 Endpoints:
 - Coracle: `http://127.0.0.1:5173`
 - Relay (filtered): `ws://127.0.0.1:8081`
 
+To allow publishing from your local test account, add its pubkey to:
+- `.dev/config/nostr-relay.config.json` -> `allowedPublicKeys`
+
 Helpers:
 
 ```bash
-./scripts/dev_status.sh
-./scripts/dev_down.sh
+./scripts/stack.sh status
+./scripts/stack.sh down
 ```
 
 Logs:
@@ -200,3 +210,4 @@ For private repos, pre-clone manually on VPS or adjust bootstrap auth strategy.
 - add blocked CIDRs in `/opt/nostr/config/nostr-filter.env`
 - optional PoW gate (`NIP-13`) via relay/filter extension
 - optional write allowlist for trusted pubkeys
+- replace/patch backend relay to support true open-write and broader kind coverage

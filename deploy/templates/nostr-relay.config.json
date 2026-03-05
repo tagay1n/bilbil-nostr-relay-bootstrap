@@ -1,5 +1,5 @@
 {
-  "name": "Bilbil Tatar Relay",
+  "name": "Bılbıl Tatar Relay",
   "description": "Tatar-focused Nostr relay",
   "storage": {
     "type": "sqlite"
@@ -8,5 +8,6 @@
     "lower": 604800,
     "upper": 900
   },
-  "alwaysStoreReplaceableEvents": false
+  "alwaysStoreReplaceableEvents": false,
+  "allowedPublicKeys": []
 }
