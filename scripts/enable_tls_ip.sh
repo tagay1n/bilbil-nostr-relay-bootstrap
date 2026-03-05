@@ -48,6 +48,7 @@ LEGO_STATE_DIR="${STACK_ROOT}/acme"
 CHALLENGE_WEBROOT="/var/www/certbot"
 CERT_DIR="/etc/letsencrypt/live/${PUBLIC_IP}"
 TMPDIR_CLEANUP=""
+LEGO_PROFILE_ARGS=()
 
 cleanup() {
   if [[ -n "${TMPDIR_CLEANUP:-}" && -d "${TMPDIR_CLEANUP}" ]]; then
@@ -76,14 +77,14 @@ require_prerequisites() {
     exit 1
   fi
 
-  if [[ ! -d "${SRC_ROOT}/coracle" || ! -d "${WWW_ROOT}" ]]; then
+  if ! ${SUDO} test -d "${SRC_ROOT}/coracle" || ! ${SUDO} test -d "${WWW_ROOT}"; then
     echo "Missing Coracle directories under ${SRC_ROOT}/coracle or ${WWW_ROOT}. Bootstrap first with install-http." >&2
     exit 1
   fi
 }
 
 install_lego_if_needed() {
-  if command -v lego >/dev/null 2>&1 && lego --help 2>&1 | grep -q -- "--profile"; then
+  if command -v lego >/dev/null 2>&1; then
     return 0
   fi
 
@@ -124,6 +125,15 @@ install_lego_if_needed() {
   TMPDIR_CLEANUP=""
 }
 
+configure_lego_profile_args() {
+  if lego --help 2>&1 | grep -q -- "--profile"; then
+    LEGO_PROFILE_ARGS=(--profile shortlived)
+  else
+    echo "lego does not support --profile flag; continuing without explicit shortlived profile."
+    LEGO_PROFILE_ARGS=()
+  fi
+}
+
 issue_or_renew_ip_cert() {
   local crt_path="${LEGO_STATE_DIR}/certificates/${PUBLIC_IP}.crt"
   local key_path="${LEGO_STATE_DIR}/certificates/${PUBLIC_IP}.key"
@@ -140,7 +150,7 @@ issue_or_renew_ip_cert() {
       --domains "${PUBLIC_IP}" \
       --http \
       --http.webroot "${CHALLENGE_WEBROOT}" \
-      --profile shortlived \
+      "${LEGO_PROFILE_ARGS[@]}" \
       renew --days 3
   else
     echo "==> Issuing short-lived IP certificate"
@@ -151,7 +161,7 @@ issue_or_renew_ip_cert() {
       --domains "${PUBLIC_IP}" \
       --http \
       --http.webroot "${CHALLENGE_WEBROOT}" \
-      --profile shortlived \
+      "${LEGO_PROFILE_ARGS[@]}" \
       run
   fi
 
@@ -202,6 +212,7 @@ rebuild_coracle_wss() {
 
 require_prerequisites
 install_lego_if_needed
+configure_lego_profile_args
 ensure_http_challenge_route
 issue_or_renew_ip_cert
 configure_nginx_tls
