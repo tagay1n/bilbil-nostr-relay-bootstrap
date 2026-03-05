@@ -2,34 +2,35 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="${ROOT_DIR}/.dev/run"
 
-stop_one() {
+stop_by_pattern() {
   local name="$1"
-  local pid_file="${RUN_DIR}/${name}.pid"
+  local pattern="$2"
+  local pids
+  pids="$(pgrep -f "${pattern}" || true)"
 
-  if [[ ! -f "${pid_file}" ]]; then
+  if [[ -z "${pids}" ]]; then
     echo "${name}: not running"
     return
   fi
 
-  local pid
-  pid="$(cat "${pid_file}")"
-
-  if kill -0 "${pid}" >/dev/null 2>&1; then
+  while read -r pid; do
+    [[ -z "${pid}" ]] && continue
     kill "${pid}" >/dev/null 2>&1 || true
-    sleep 1
+  done <<< "${pids}"
+
+  sleep 1
+
+  while read -r pid; do
+    [[ -z "${pid}" ]] && continue
     if kill -0 "${pid}" >/dev/null 2>&1; then
       kill -9 "${pid}" >/dev/null 2>&1 || true
     fi
-    echo "${name}: stopped"
-  else
-    echo "${name}: stale pid file removed"
-  fi
+  done <<< "${pids}"
 
-  rm -f "${pid_file}"
+  echo "${name}: stopped"
 }
 
-stop_one "coracle"
-stop_one "nostr-filter"
-stop_one "nostr-relay"
+stop_by_pattern "coracle" "pnpm run dev -- --host 127.0.0.1 --port 5173|vite --host -- --host 127.0.0.1 --port 5173"
+stop_by_pattern "nostr-filter" "node --max-old-space-size=1024 filter.js"
+stop_by_pattern "nostr-relay" "node dist/src/WebSocket.js"

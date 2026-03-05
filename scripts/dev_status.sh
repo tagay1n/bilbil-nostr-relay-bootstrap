@@ -2,29 +2,23 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="${ROOT_DIR}/.dev/run"
 LOG_DIR="${ROOT_DIR}/.dev/logs"
 
-status_one() {
+status_by_pattern() {
   local name="$1"
-  local pid_file="${RUN_DIR}/${name}.pid"
+  local pattern="$2"
+  local pids
+  pids="$(pgrep -f "${pattern}" || true)"
 
-  if [[ ! -f "${pid_file}" ]]; then
-    echo "${name}: not running"
-    return
-  fi
-
-  local pid
-  pid="$(cat "${pid_file}")"
-  if kill -0 "${pid}" >/dev/null 2>&1; then
-    echo "${name}: running (pid ${pid})"
+  if [[ -n "${pids}" ]]; then
+    echo "${name}: running (pid(s) $(echo "${pids}" | tr '\n' ' ' | sed 's/ $//'))"
   else
-    echo "${name}: stale pid file"
+    echo "${name}: not running"
   fi
 }
 
-status_one "nostr-relay"
-status_one "nostr-filter"
-status_one "coracle"
+status_by_pattern "nostr-relay" "node dist/src/WebSocket.js"
+status_by_pattern "nostr-filter" "node --max-old-space-size=1024 filter.js"
+status_by_pattern "coracle" "pnpm run dev -- --host 127.0.0.1 --port 5173|vite --host -- --host 127.0.0.1 --port 5173"
 
 echo "logs: ${LOG_DIR}"

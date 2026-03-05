@@ -6,9 +6,8 @@ DEV_DIR="${ROOT_DIR}/.dev"
 SRC_DIR="${DEV_DIR}/src"
 CFG_DIR="${DEV_DIR}/config"
 LOG_DIR="${DEV_DIR}/logs"
-RUN_DIR="${DEV_DIR}/run"
 
-mkdir -p "${SRC_DIR}" "${CFG_DIR}" "${LOG_DIR}" "${RUN_DIR}"
+mkdir -p "${SRC_DIR}" "${CFG_DIR}" "${LOG_DIR}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -45,11 +44,15 @@ clone_or_update_repo https://github.com/rrainn/nostr-relay.git "${SRC_DIR}/nostr
 clone_or_update_repo https://github.com/imksoo/nostr-filter.git "${SRC_DIR}/nostr-filter"
 clone_or_update_repo https://github.com/coracle-social/coracle.git "${SRC_DIR}/coracle"
 
-cp "${ROOT_DIR}/deploy/templates/nostr-relay.config.json" "${CFG_DIR}/nostr-relay.config.json"
-cp "${ROOT_DIR}/deploy/templates/nostr-filter.env" "${CFG_DIR}/nostr-filter.env"
+if [[ ! -f "${CFG_DIR}/nostr-relay.config.json" ]]; then
+  cp "${ROOT_DIR}/deploy/templates/nostr-relay.config.json" "${CFG_DIR}/nostr-relay.config.json"
+fi
+if [[ ! -f "${CFG_DIR}/nostr-filter.env" ]]; then
+  cp "${ROOT_DIR}/deploy/templates/nostr-filter.env" "${CFG_DIR}/nostr-filter.env"
+fi
 cat > "${CFG_DIR}/coracle.env.local" <<'ENVEOF'
-VITE_APP_NAME=Bilbil Dev
-VITE_APP_DESCRIPTION=Bilbil local development
+VITE_APP_NAME=Bılbıl Dev
+VITE_APP_DESCRIPTION=Bılbıl local development
 VITE_DEFAULT_RELAYS=ws://127.0.0.1:8081
 VITE_SEARCH_RELAYS=ws://127.0.0.1:8081
 VITE_LOG_LEVEL=info
@@ -76,37 +79,94 @@ echo "Installing Coracle deps"
 (
   cd "${SRC_DIR}/coracle"
   corepack prepare pnpm@latest --activate >/dev/null 2>&1 || true
-  CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile
+  # On low-resource hosts pnpm may occasionally fail with transient EAGAIN while
+  # materializing node_modules; retry with conservative concurrency.
+  attempt=1
+  max_attempts=3
+  until CYPRESS_INSTALL_BINARY=0 pnpm install \
+    --frozen-lockfile \
+    --package-import-method=hardlink \
+    --child-concurrency=4 \
+    --network-concurrency=8; do
+    if [[ "${attempt}" -ge "${max_attempts}" ]]; then
+      echo "Coracle dependency install failed after ${max_attempts} attempts" >&2
+      exit 1
+    fi
+    sleep_seconds=$((attempt * 3))
+    echo "Coracle dependency install failed (attempt ${attempt}/${max_attempts}), retrying in ${sleep_seconds}s..." >&2
+    sleep "${sleep_seconds}"
+    attempt=$((attempt + 1))
+  done
 )
 
-start_if_not_running() {
-  local name="$1"
-  local cmd="$2"
-  local pid_file="${RUN_DIR}/${name}.pid"
-  local log_file="${LOG_DIR}/${name}.log"
+wait_for_tcp() {
+  local host="$1"
+  local port="$2"
+  local timeout_seconds="${3:-20}"
+  local start_ts
+  start_ts="$(date +%s)"
 
-  if [[ -f "${pid_file}" ]]; then
-    local pid
-    pid="$(cat "${pid_file}")"
-    if kill -0 "${pid}" >/dev/null 2>&1; then
-      echo "${name} already running (pid ${pid})"
-      return
+  while true; do
+    if (exec 3<>"/dev/tcp/${host}/${port}") 2>/dev/null; then
+      exec 3<&-
+      exec 3>&-
+      return 0
     fi
-    rm -f "${pid_file}"
-  fi
 
-  bash -lc "${cmd}" >"${log_file}" 2>&1 &
-  echo $! >"${pid_file}"
-  echo "Started ${name} (pid $(cat "${pid_file}"))"
+    if (( "$(date +%s)" - start_ts >= timeout_seconds )); then
+      return 1
+    fi
+    sleep 0.5
+  done
 }
 
-start_if_not_running "nostr-relay" "cd '${SRC_DIR}/nostr-relay' && node dist/src/WebSocket.js"
-start_if_not_running "nostr-filter" "cd '${SRC_DIR}/nostr-filter' && set -a && source '${CFG_DIR}/nostr-filter.env' && set +a && node --max-old-space-size=1024 filter.js"
-start_if_not_running "coracle" "cd '${SRC_DIR}/coracle' && pnpm run dev -- --host 127.0.0.1 --port 5173"
+start_foreground() {
+  local pids=()
 
-echo
-echo "Dev stack is up"
-echo "Coracle: http://127.0.0.1:5173"
-echo "Relay: ws://127.0.0.1:8081"
-echo "Logs: ${LOG_DIR}"
-echo "Stop with: ./scripts/dev_down.sh"
+  start_component() {
+    local name="$1"
+    local cmd="$2"
+    local pid
+    : > "${LOG_DIR}/${name}.log"
+    bash -lc "${cmd}" \
+      > >(tee -a "${LOG_DIR}/${name}.log" | sed -u "s/^/[${name}] /") \
+      2> >(tee -a "${LOG_DIR}/${name}.log" | sed -u "s/^/[${name}] /" >&2) &
+    pid="$!"
+    pids+=("${pid}")
+    echo "Started ${name} (pid ${pid})"
+  }
+
+  cleanup() {
+    for pid in "${pids[@]}"; do
+      kill "${pid}" >/dev/null 2>&1 || true
+    done
+    wait >/dev/null 2>&1 || true
+  }
+
+  trap 'cleanup; exit 130' INT TERM
+  trap 'cleanup' EXIT
+
+  start_component "nostr-relay" "cd '${SRC_DIR}/nostr-relay' && exec node dist/src/WebSocket.js"
+  if ! wait_for_tcp "127.0.0.1" "8080" "20"; then
+    echo "nostr-relay did not become ready on 127.0.0.1:8080" >&2
+    exit 1
+  fi
+
+  start_component "nostr-filter" "cd '${SRC_DIR}/nostr-filter' && set -a && source '${CFG_DIR}/nostr-filter.env' && set +a && exec node --max-old-space-size=1024 filter.js"
+  start_component "coracle" "cd '${SRC_DIR}/coracle' && exec pnpm run dev -- --host 127.0.0.1 --port 5173"
+
+  echo
+  echo "Dev stack is up (foreground mode)"
+  echo "Coracle: http://127.0.0.1:5173"
+  echo "Relay: ws://127.0.0.1:8081"
+  echo "Press Ctrl+C to stop all components"
+
+  set +e
+  wait -n
+  local exit_code=$?
+  set -e
+  echo "A component exited (code ${exit_code}), stopping remaining components..." >&2
+  exit "${exit_code}"
+}
+
+start_foreground
