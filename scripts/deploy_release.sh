@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 ENV_NAME="demo"
 LOCK_FILE="${ROOT_DIR}/deploy/versions.lock.json"
@@ -171,6 +171,10 @@ ensure_base_configs() {
   fi
 
   ln -sfn "${CFG_ROOT}/nostr-relay.config.json" "${SRC_ROOT}/nostr-relay/config.json"
+
+  if jq -e '.allowedPublicKeys | type == "array" and length == 0' "${CFG_ROOT}/nostr-relay.config.json" >/dev/null 2>&1; then
+    log "WARNING: allowedPublicKeys is empty; relay will reject writes with current rrainn/nostr-relay behavior"
+  fi
 }
 
 build_nostr_relay() {

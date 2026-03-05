@@ -34,7 +34,7 @@ jobs:
           sudo apt-get install -y shellcheck jq yamllint
 
       - name: Run quality gate
-        run: ./scripts/quality_gate.sh
+        run: ./scripts/stack.sh quality
 
   bootstrap:
     needs: quality
@@ -126,12 +126,12 @@ jobs:
           git fetch --prune origin
           git checkout --detach "${GIT_SHA}"
 
-          ./deploy/scripts/install_http_stack.sh "${PUBLIC_HOST}"
+          ./scripts/stack.sh install-http "${PUBLIC_HOST}"
 
           export STACK_ROOT="${DEMO_STACK_ROOT:-/opt/nostr}"
           export WWW_ROOT="${DEMO_WWW_ROOT:-/var/www/coracle}"
 
-          ./deploy/scripts/deploy_release.sh \
+          ./scripts/stack.sh deploy \
             --env demo \
             --public-host "${PUBLIC_HOST}" \
             --relay-scheme "${RELAY_SCHEME}" \

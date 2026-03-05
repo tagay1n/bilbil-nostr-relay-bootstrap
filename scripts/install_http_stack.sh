@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 PUBLIC_HOST="${1:-}"
 if [[ -z "${PUBLIC_HOST}" ]]; then
@@ -132,3 +132,8 @@ echo "Relay WS URL: ws://${PUBLIC_HOST}/relay"
 echo "Relay NIP-11: curl -H 'Accept: application/nostr+json' http://${PUBLIC_HOST}/relay"
 echo "Relay logs: sudo journalctl -u nostr-relay -f"
 echo "Filter logs: sudo journalctl -u nostr-filter -f"
+echo
+echo "IMPORTANT:"
+echo "  rrainn/nostr-relay currently requires write pubkeys in allowedPublicKeys."
+echo "  Edit /opt/nostr/config/nostr-relay.config.json and set allowedPublicKeys,"
+echo "  then restart relay: sudo systemctl restart nostr-relay"

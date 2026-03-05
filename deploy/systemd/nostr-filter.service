@@ -1,5 +1,5 @@
 [Unit]
-Description=Bilbil Nostr Filter (imksoo/nostr-filter)
+Description=Bılbıl Nostr Filter (imksoo/nostr-filter)
 After=network.target nostr-relay.service
 Requires=nostr-relay.service
 

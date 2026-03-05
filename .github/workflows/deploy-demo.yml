@@ -23,7 +23,7 @@ jobs:
           sudo apt-get install -y shellcheck jq yamllint
 
       - name: Run quality gate
-        run: ./scripts/quality_gate.sh
+        run: ./scripts/stack.sh quality
 
   deploy:
     needs: quality
@@ -78,7 +78,7 @@ jobs:
 
           RELAY_SCHEME="${DEMO_RELAY_SCHEME:-ws}"
 
-          ./deploy/scripts/deploy_release.sh \
+          ./scripts/stack.sh deploy \
             --env demo \
             --public-host "${DEMO_PUBLIC_HOST}" \
             --relay-scheme "${RELAY_SCHEME}" \

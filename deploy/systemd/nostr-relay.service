@@ -1,5 +1,5 @@
 [Unit]
-Description=Bilbil Nostr Relay (rrainn/nostr-relay)
+Description=Bılbıl Nostr Relay (rrainn/nostr-relay)
 After=network.target
 
 [Service]

@@ -53,7 +53,7 @@ jobs:
           export STACK_ROOT="${DEMO_STACK_ROOT:-/opt/nostr}"
           export WWW_ROOT="${DEMO_WWW_ROOT:-/var/www/coracle}"
 
-          ./deploy/scripts/deploy_release.sh --rollback-last --env demo
+          ./scripts/stack.sh rollback --env demo
           EOSSH
 
       - name: Setup Node

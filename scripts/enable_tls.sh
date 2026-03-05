@@ -16,7 +16,7 @@ else
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 ${SUDO} apt-get update
 ${SUDO} apt-get install -y certbot python3-certbot-nginx
@@ -27,7 +27,7 @@ sed "s|__DOMAIN__|${DOMAIN}|g" "${REPO_DIR}/deploy/nginx/bilbil-https.conf" | ${
 ${SUDO} nginx -t
 ${SUDO} systemctl reload nginx
 
-"${REPO_DIR}/deploy/scripts/rebuild_coracle.sh" "${DOMAIN}"
+"${REPO_DIR}/scripts/rebuild_coracle.sh" "${DOMAIN}"
 
 echo "TLS enabled."
 echo "Coracle: https://${DOMAIN}/"
