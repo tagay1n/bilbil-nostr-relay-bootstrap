@@ -18,7 +18,7 @@ on:
           - wss
 
 concurrency:
-  group: deploy
+  group: deploy-v2
   cancel-in-progress: false
 
 jobs:
