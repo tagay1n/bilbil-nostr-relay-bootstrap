@@ -156,6 +156,7 @@ issue_or_renew_ip_cert() {
     ${SUDO} lego \
       --accept-tos \
       --email "${EMAIL}" \
+      --disable-cn \
       --path "${LEGO_STATE_DIR}" \
       --domains "${PUBLIC_IP}" \
       --http \
@@ -166,6 +167,7 @@ issue_or_renew_ip_cert() {
     ${SUDO} lego \
       --accept-tos \
       --email "${EMAIL}" \
+      --disable-cn \
       --path "${LEGO_STATE_DIR}" \
       --domains "${PUBLIC_IP}" \
       --http \
