@@ -178,10 +178,8 @@ jobs:
 
           export NOSTR_NOTIFY_RELAYS="${RELAYS}"
           export NOSTR_NOTIFY_TAGS="deploy,${STATUS},demo"
-          export NOSTR_NOTIFY_CONTENT="bilbil deploy ${STATUS}
-sha: ${GIT_SHA}
-quality: ${QUALITY_RESULT}
-deploy: ${DEPLOY_RESULT}
-run: ${RUN_URL}"
+          printf -v NOSTR_NOTIFY_CONTENT 'bilbil deploy %s\nsha: %s\nquality: %s\ndeploy: %s\nrun: %s' \
+            "${STATUS}" "${GIT_SHA}" "${QUALITY_RESULT}" "${DEPLOY_RESULT}" "${RUN_URL}"
+          export NOSTR_NOTIFY_CONTENT
 
           node /tmp/nostr-notify/notify_nostr.mjs
