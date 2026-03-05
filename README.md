@@ -200,6 +200,8 @@ Workflows:
 `deploy.yml` requires CI quality gate (`ci.yml`) and deploys on each push to `main`.
 It can also be run manually via `workflow_dispatch` with optional overrides (`public_host`, `relay_scheme`, `source_sha`).
 If `DEMO_NOSTR_NOTIFY_NSEC` is set, deploy runs publish status notes to Nostr.
+Deploy and Bootstrap share one concurrency group per branch and use `cancel-in-progress: true`.
+That means a newer run on the same branch cancels older in-progress deploy/bootstrap runs.
 
 ### Bootstrap workflow
 

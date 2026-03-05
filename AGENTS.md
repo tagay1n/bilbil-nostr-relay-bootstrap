@@ -78,6 +78,7 @@ CI/CD workflows:
 - `.github/workflows/ci.yml` (quality gates on PR; reusable by deploy/bootstrap)
 - `.github/workflows/deploy.yml` (auto-deploy on main + manual dispatch)
 - `.github/workflows/bootstrap.yml` (manual bootstrap/install + deploy)
+- `deploy` and `bootstrap` share one concurrency group per branch with `cancel-in-progress: true`
 
 Nostr notifications:
 - Implemented by `scripts/notify_nostr.mjs`.
