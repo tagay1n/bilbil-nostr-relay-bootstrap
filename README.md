@@ -90,6 +90,23 @@ After that use:
 - Coracle: `https://<domain>/`
 - Relay: `wss://<domain>/relay`
 
+### Temporary TLS on raw IP (short-lived cert)
+
+If you need signer extension support before buying a domain, you can issue a short-lived
+Let's Encrypt IP certificate:
+
+```bash
+./scripts/stack.sh enable-tls-ip <server-ipv4> <email>
+```
+
+After that use:
+- Coracle: `https://<server-ipv4>/`
+- Relay: `wss://<server-ipv4>/relay`
+
+Important:
+- IP certificates are short-lived; re-run `enable-tls-ip` periodically to renew.
+- Domain + regular TLS is still the recommended long-term setup.
+
 ## 4) Ops quick commands
 
 ```bash

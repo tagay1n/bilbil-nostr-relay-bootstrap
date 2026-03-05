@@ -95,6 +95,11 @@ After migration:
 - app: `https://<domain>/`
 - relay: `wss://<domain>/relay`
 
+Temporary IPv4 TLS (short-lived cert):
+```bash
+./scripts/stack.sh enable-tls-ip <server-ipv4> <email>
+```
+
 ## Notes for Future Sessions
 
 - Prefer keeping relay/filter behind nginx only; do not expose 8080/8081 publicly.

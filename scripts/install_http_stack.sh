@@ -122,8 +122,9 @@ echo "==> Creating system user and directories"
 if ! id -u nostr >/dev/null 2>&1; then
   ${SUDO} useradd --system --create-home --home /opt/nostr --shell /usr/sbin/nologin nostr
 fi
-${SUDO} mkdir -p /opt/nostr/src /opt/nostr/config /var/www/coracle
+${SUDO} mkdir -p /opt/nostr/src /opt/nostr/config /var/www/coracle /var/www/certbot/.well-known/acme-challenge
 ${SUDO} chown -R nostr:nostr /opt/nostr
+${SUDO} chmod 755 /var/www/certbot /var/www/certbot/.well-known /var/www/certbot/.well-known/acme-challenge
 
 clone_or_update_repo() {
   local url="$1"

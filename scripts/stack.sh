@@ -19,6 +19,7 @@ Deploy commands:
   install-http [args...]      Install VPS HTTP/WS stack (e.g. --skip-build <host-or-ip>)
   rebuild-coracle <host>      Rebuild Coracle for host/domain
   enable-tls <domain> <email> Enable TLS and switch to HTTPS/WSS
+  enable-tls-ip <ip> <email>  Enable short-lived TLS for IPv4 and switch to HTTPS/WSS
   smoke-test <host>           Run smoke checks
   deploy [args...]            Run deterministic release deploy (passes args through)
   rollback [args...]          Roll back to last successful release (passes args through)
@@ -65,6 +66,9 @@ case "${cmd}" in
     ;;
   enable-tls)
     exec "${SCRIPT_DIR}/enable_tls.sh" "$@"
+    ;;
+  enable-tls-ip)
+    exec "${SCRIPT_DIR}/enable_tls_ip.sh" "$@"
     ;;
   smoke-test)
     exec "${SCRIPT_DIR}/smoke_test.sh" "$@"
