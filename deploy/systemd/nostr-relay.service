@@ -1,0 +1,20 @@
+[Unit]
+Description=Bilbil Nostr Relay (rrainn/nostr-relay)
+After=network.target
+
+[Service]
+Type=simple
+User=nostr
+Group=nostr
+WorkingDirectory=/opt/nostr/src/nostr-relay
+ExecStart=/usr/bin/node dist/src/WebSocket.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/nostr/src/nostr-relay
+
+[Install]
+WantedBy=multi-user.target

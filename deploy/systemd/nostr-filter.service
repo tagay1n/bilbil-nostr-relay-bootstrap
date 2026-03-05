@@ -1,0 +1,22 @@
+[Unit]
+Description=Bilbil Nostr Filter (imksoo/nostr-filter)
+After=network.target nostr-relay.service
+Requires=nostr-relay.service
+
+[Service]
+Type=simple
+User=nostr
+Group=nostr
+WorkingDirectory=/opt/nostr/src/nostr-filter
+EnvironmentFile=/opt/nostr/config/nostr-filter.env
+ExecStart=/usr/bin/node --max-old-space-size=1024 filter.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/nostr/src/nostr-filter
+
+[Install]
+WantedBy=multi-user.target
