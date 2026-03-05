@@ -226,7 +226,7 @@ That means a newer run on the same branch cancels older in-progress deploy/boots
 `enable-tls-ip.yml` is manual and runs:
 `./scripts/stack.sh enable-tls-ip <public_ip> <email>` on the VPS over SSH.
 Inputs:
-- `public_ip` (required, IPv4)
+- `public_ip` (optional, IPv4; defaults to `DEMO_SSH_HOST`)
 - `email` (required, ACME registration email)
 - `source_sha` (optional, commit SHA to run)
 

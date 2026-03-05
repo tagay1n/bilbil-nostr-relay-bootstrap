@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       public_ip:
-        description: Public IPv4 to issue certificate for
-        required: true
+        description: Public IPv4 to issue certificate for (defaults to DEMO_SSH_HOST)
+        required: false
         type: string
       email:
         description: ACME registration email
@@ -59,9 +59,9 @@ jobs:
           INPUT_SOURCE_SHA: ${{ github.event.inputs.source_sha }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          if [[ -z "${INPUT_PUBLIC_IP}" ]]; then
-            echo "public_ip input is required" >&2
-            exit 1
+          PUBLIC_IP="${INPUT_PUBLIC_IP}"
+          if [[ -z "${PUBLIC_IP}" ]]; then
+            PUBLIC_IP="${DEMO_SSH_HOST}"
           fi
 
           if [[ -z "${INPUT_EMAIL}" ]]; then
@@ -81,7 +81,7 @@ jobs:
             "DEMO_REPO_PATH=${REPO_PATH@Q} \
              GH_REPOSITORY=${GH_REPOSITORY@Q} \
              GIT_SHA=${GIT_SHA@Q} \
-             PUBLIC_IP=${INPUT_PUBLIC_IP@Q} \
+             PUBLIC_IP=${PUBLIC_IP@Q} \
              ACME_EMAIL=${INPUT_EMAIL@Q} \
              bash -s" <<'EOSSH'
           set -euo pipefail
