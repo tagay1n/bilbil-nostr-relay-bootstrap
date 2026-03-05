@@ -152,7 +152,6 @@ jobs:
           npm install --no-save nostr-tools
 
       - name: Publish Nostr deploy notification
-        if: ${{ secrets.DEMO_NOSTR_NOTIFY_NSEC != '' }}
         continue-on-error: true
         env:
           NOSTR_NOTIFY_NSEC: ${{ secrets.DEMO_NOSTR_NOTIFY_NSEC }}
@@ -164,6 +163,11 @@ jobs:
           GIT_SHA: ${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          if [[ -z "${NOSTR_NOTIFY_NSEC}" ]]; then
+            echo "Skipping Nostr deploy notification: DEMO_NOSTR_NOTIFY_NSEC is not set."
+            exit 0
+          fi
+
           if [[ "${DEPLOY_RESULT}" == "success" ]]; then
             STATUS="success"
           else
