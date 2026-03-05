@@ -40,7 +40,11 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-LEGO_STATE_DIR="/opt/nostr/acme"
+STACK_ROOT="${STACK_ROOT:-/opt/nostr}"
+SRC_ROOT="${STACK_ROOT}/src"
+WWW_ROOT="${WWW_ROOT:-/var/www/coracle}"
+
+LEGO_STATE_DIR="${STACK_ROOT}/acme"
 CHALLENGE_WEBROOT="/var/www/certbot"
 CERT_DIR="/etc/letsencrypt/live/${PUBLIC_IP}"
 TMPDIR_CLEANUP=""
@@ -72,8 +76,8 @@ require_prerequisites() {
     exit 1
   fi
 
-  if [[ ! -d /opt/nostr/src/coracle || ! -d /var/www/coracle ]]; then
-    echo "Missing Coracle directories under /opt/nostr/src or /var/www. Bootstrap first with install-http." >&2
+  if [[ ! -d "${SRC_ROOT}/coracle" || ! -d "${WWW_ROOT}" ]]; then
+    echo "Missing Coracle directories under ${SRC_ROOT}/coracle or ${WWW_ROOT}. Bootstrap first with install-http." >&2
     exit 1
   fi
 }
@@ -180,19 +184,19 @@ rebuild_coracle_wss() {
   sed "s|__PUBLIC_HOST__|${PUBLIC_IP}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" > "${tmp_env}"
   sed -i 's|ws://|wss://|g' "${tmp_env}"
 
-  ${SUDO} cp "${tmp_env}" /opt/nostr/src/coracle/.env.local
-  ${SUDO} chown nostr:nostr /opt/nostr/src/coracle/.env.local
+  ${SUDO} cp "${tmp_env}" "${SRC_ROOT}/coracle/.env.local"
+  ${SUDO} chown nostr:nostr "${SRC_ROOT}/coracle/.env.local"
   rm -f "${tmp_env}"
 
   if [[ "${EUID}" -eq 0 ]]; then
-    runuser -u nostr -- bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+    runuser -u nostr -- bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
   else
-    sudo -u nostr bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+    sudo -u nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
   fi
 
-  ${SUDO} rm -rf /var/www/coracle/*
-  ${SUDO} cp -a /opt/nostr/src/coracle/dist/. /var/www/coracle/
-  ${SUDO} chown -R www-data:www-data /var/www/coracle
+  ${SUDO} find "${WWW_ROOT:?}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+  ${SUDO} cp -a "${SRC_ROOT}/coracle/dist/." "${WWW_ROOT}/"
+  ${SUDO} chown -R www-data:www-data "${WWW_ROOT}"
   ${SUDO} systemctl reload nginx
 }
 

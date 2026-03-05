@@ -53,6 +53,8 @@ jobs:
           DEMO_SSH_PORT: ${{ secrets.DEMO_SSH_PORT }}
           DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
           DEMO_REPO_PATH: ${{ secrets.DEMO_REPO_PATH }}
+          DEMO_STACK_ROOT: ${{ secrets.DEMO_STACK_ROOT }}
+          DEMO_WWW_ROOT: ${{ secrets.DEMO_WWW_ROOT }}
           GH_REPOSITORY: ${{ github.repository }}
           INPUT_PUBLIC_IP: ${{ github.event.inputs.public_ip }}
           INPUT_EMAIL: ${{ github.event.inputs.email }}
@@ -81,6 +83,8 @@ jobs:
             "DEMO_REPO_PATH=${REPO_PATH@Q} \
              GH_REPOSITORY=${GH_REPOSITORY@Q} \
              GIT_SHA=${GIT_SHA@Q} \
+             DEMO_STACK_ROOT=${DEMO_STACK_ROOT@Q} \
+             DEMO_WWW_ROOT=${DEMO_WWW_ROOT@Q} \
              PUBLIC_IP=${PUBLIC_IP@Q} \
              ACME_EMAIL=${INPUT_EMAIL@Q} \
              bash -s" <<'EOSSH'
@@ -113,6 +117,9 @@ jobs:
           cd "${DEMO_REPO_PATH}"
           git fetch --prune origin
           git checkout --detach "${GIT_SHA}"
+
+          export STACK_ROOT="${DEMO_STACK_ROOT:-/opt/nostr}"
+          export WWW_ROOT="${DEMO_WWW_ROOT:-/var/www/coracle}"
 
           ./scripts/stack.sh enable-tls-ip "${PUBLIC_IP}" "${ACME_EMAIL}"
           EOSSH

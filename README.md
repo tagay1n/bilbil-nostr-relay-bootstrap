@@ -229,6 +229,7 @@ Inputs:
 - `public_ip` (optional, IPv4; defaults to `DEMO_SSH_HOST`)
 - `email` (required, ACME registration email)
 - `source_sha` (optional, commit SHA to run)
+It also respects `DEMO_STACK_ROOT` and `DEMO_WWW_ROOT` secrets (same defaults as deploy).
 
 ### Bootstrap workflow
 
