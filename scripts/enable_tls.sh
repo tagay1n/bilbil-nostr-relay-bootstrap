@@ -27,7 +27,7 @@ sed "s|__DOMAIN__|${DOMAIN}|g" "${REPO_DIR}/deploy/nginx/bilbil-https.conf" | ${
 ${SUDO} nginx -t
 ${SUDO} systemctl reload nginx
 
-"${REPO_DIR}/scripts/rebuild_coracle.sh" "${DOMAIN}"
+"${REPO_DIR}/scripts/rebuild_coracle.sh" "${DOMAIN}" "wss"
 
 echo "TLS enabled."
 echo "Coracle: https://${DOMAIN}/"

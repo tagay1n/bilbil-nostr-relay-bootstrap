@@ -75,8 +75,8 @@ Local dev stack (no systemd/nginx):
 ```
 
 CI/CD workflows:
-- `.github/workflows/ci.yml` (quality gates on PR; reusable by deploy/bootstrap)
-- `.github/workflows/deploy.yml` (auto-deploy on main + manual dispatch)
+- `.github/workflows/ci.yml` (manual + reusable by deploy/bootstrap)
+- `.github/workflows/deploy.yml` (manual deploy)
 - `.github/workflows/bootstrap.yml` (manual bootstrap/install + deploy)
 - `.github/workflows/enable-tls-ip.yml` (manual short-lived IP TLS issue/renew)
 - `deploy` and `bootstrap` share one concurrency group per branch with `cancel-in-progress: true`
@@ -106,4 +106,5 @@ Temporary IPv4 TLS (short-lived cert):
 - Prefer keeping relay/filter behind nginx only; do not expose 8080/8081 publicly.
 - systemd unit hardening includes `IPAddressDeny=any` with loopback allowlist for relay/filter.
 - Keep config files in `/opt/nostr/config` as source of truth.
+- For TLS environments, prefer `DEMO_RELAY_SCHEME=wss` in workflow secrets.
 - If policy changes are requested (e.g. tag-based strict checks), update `deploy/templates/nostr-filter.env` and redeploy/restart filter.

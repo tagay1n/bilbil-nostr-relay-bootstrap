@@ -17,7 +17,8 @@ Local commands:
 
 Deploy commands:
   install-http [args...]      Install VPS HTTP/WS stack (e.g. --skip-build <host-or-ip>)
-  rebuild-coracle <host>      Rebuild Coracle for host/domain
+  rebuild-coracle <host> [scheme]
+                              Rebuild Coracle for host/domain with ws or wss (default ws)
   enable-tls <domain> <email> Enable TLS and switch to HTTPS/WSS
   enable-tls-ip <ip> <email>  Enable short-lived TLS for IPv4 and switch to HTTPS/WSS
   smoke-test <host>           Run smoke checks

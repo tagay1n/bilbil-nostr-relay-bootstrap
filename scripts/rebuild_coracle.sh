@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 <public-host-or-domain>" >&2
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+  echo "Usage: $0 <public-host-or-domain> [ws|wss]" >&2
   exit 1
 fi
 
 PUBLIC_HOST="$1"
+RELAY_SCHEME="${2:-ws}"
+
+if [[ "${RELAY_SCHEME}" != "ws" && "${RELAY_SCHEME}" != "wss" ]]; then
+  echo "Invalid relay scheme: ${RELAY_SCHEME} (expected ws or wss)" >&2
+  exit 1
+fi
 
 if [[ "${EUID}" -eq 0 ]]; then
   SUDO=""
@@ -24,16 +30,33 @@ run_as_nostr() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+STACK_ROOT="${STACK_ROOT:-/opt/nostr}"
+SRC_ROOT="${STACK_ROOT}/src"
+WWW_ROOT="${WWW_ROOT:-/var/www/coracle}"
 
-sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" \
-  | ${SUDO} tee /opt/nostr/src/coracle/.env.local >/dev/null
-${SUDO} chown nostr:nostr /opt/nostr/src/coracle/.env.local
-run_as_nostr bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+if ! ${SUDO} test -d "${SRC_ROOT}/coracle"; then
+  echo "Missing ${SRC_ROOT}/coracle. Bootstrap first with install-http." >&2
+  exit 1
+fi
 
-${SUDO} rm -rf /var/www/coracle/*
-${SUDO} cp -a /opt/nostr/src/coracle/dist/. /var/www/coracle/
-${SUDO} chown -R www-data:www-data /var/www/coracle
+${SUDO} mkdir -p "${WWW_ROOT}"
+
+tmp_env="$(mktemp)"
+sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" > "${tmp_env}"
+if [[ "${RELAY_SCHEME}" == "wss" ]]; then
+  sed -i 's|ws://|wss://|g' "${tmp_env}"
+fi
+
+${SUDO} cp "${tmp_env}" "${SRC_ROOT}/coracle/.env.local"
+${SUDO} chown nostr:nostr "${SRC_ROOT}/coracle/.env.local"
+rm -f "${tmp_env}"
+
+run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+
+${SUDO} find "${WWW_ROOT:?}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+${SUDO} cp -a "${SRC_ROOT}/coracle/dist/." "${WWW_ROOT}/"
+${SUDO} chown -R www-data:www-data "${WWW_ROOT}"
 ${SUDO} systemctl reload nginx
 
 echo "Coracle rebuilt."
-echo "If host is a domain with TLS, relay URL will be wss://${PUBLIC_HOST}/relay"
+echo "Relay URL default: ${RELAY_SCHEME}://${PUBLIC_HOST}/relay"

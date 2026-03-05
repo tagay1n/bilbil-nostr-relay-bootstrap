@@ -2,9 +2,6 @@
 name: Deploy
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       public_host:
@@ -83,7 +80,10 @@ jobs:
 
           RELAY_SCHEME="${INPUT_RELAY_SCHEME}"
           if [[ -z "${RELAY_SCHEME}" ]]; then
-            RELAY_SCHEME="${DEMO_RELAY_SCHEME:-ws}"
+            RELAY_SCHEME="${DEMO_RELAY_SCHEME}"
+          fi
+          if [[ -z "${RELAY_SCHEME}" ]]; then
+            RELAY_SCHEME="auto"
           fi
 
           GIT_SHA="${INPUT_SOURCE_SHA}"
@@ -108,7 +108,15 @@ jobs:
           export STACK_ROOT="${DEMO_STACK_ROOT:-/opt/nostr}"
           export WWW_ROOT="${DEMO_WWW_ROOT:-/var/www/coracle}"
 
-          RELAY_SCHEME="${DEMO_RELAY_SCHEME:-ws}"
+          if [[ "${DEMO_RELAY_SCHEME}" == "auto" ]]; then
+            if [[ -f /etc/nginx/sites-available/bilbil-http.conf ]] && grep -Eq 'listen[[:space:]]+443' /etc/nginx/sites-available/bilbil-http.conf; then
+              RELAY_SCHEME="wss"
+            else
+              RELAY_SCHEME="ws"
+            fi
+          else
+            RELAY_SCHEME="${DEMO_RELAY_SCHEME:-ws}"
+          fi
 
           ./scripts/stack.sh deploy \
             --env demo \
@@ -157,6 +165,7 @@ jobs:
           NOSTR_NOTIFY_NSEC: ${{ secrets.DEMO_NOSTR_NOTIFY_NSEC }}
           DEMO_NOSTR_NOTIFY_RELAYS: ${{ secrets.DEMO_NOSTR_NOTIFY_RELAYS }}
           DEMO_PUBLIC_HOST: ${{ secrets.DEMO_PUBLIC_HOST }}
+          DEMO_RELAY_SCHEME: ${{ secrets.DEMO_RELAY_SCHEME }}
           DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
@@ -177,7 +186,8 @@ jobs:
           RELAYS="${DEMO_NOSTR_NOTIFY_RELAYS}"
           if [[ -z "${RELAYS}" ]]; then
             PUBLIC_HOST="${DEMO_PUBLIC_HOST:-$DEMO_SSH_HOST}"
-            RELAYS="ws://${PUBLIC_HOST}/relay"
+            RELAY_SCHEME_NOTIFY="${DEMO_RELAY_SCHEME:-ws}"
+            RELAYS="${RELAY_SCHEME_NOTIFY}://${PUBLIC_HOST}/relay"
           fi
 
           export NOSTR_NOTIFY_RELAYS="${RELAYS}"

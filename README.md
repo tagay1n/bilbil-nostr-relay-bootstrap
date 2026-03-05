@@ -65,7 +65,7 @@ curl -H 'Accept: application/nostr+json' http://<SERVER_IP>/relay
 When moving from IP to domain (or any host change):
 
 ```bash
-./scripts/stack.sh rebuild-coracle <new-host>
+./scripts/stack.sh rebuild-coracle <new-host> [ws|wss]
 ```
 
 This updates Coracle defaults to use:
@@ -198,8 +198,8 @@ Logs:
 ## CI/CD (GitHub Actions)
 
 Workflows:
-- `.github/workflows/ci.yml`
-- `.github/workflows/deploy.yml`
+- `.github/workflows/ci.yml` (manual + reusable by other workflows)
+- `.github/workflows/deploy.yml` (manual deploy)
 - `.github/workflows/bootstrap.yml` (manual first-time bootstrap + deploy)
 - `.github/workflows/enable-tls-ip.yml` (manual short-lived IP TLS issue/renew)
 
@@ -211,17 +211,18 @@ Workflows:
 - `DEMO_SSH_KEY` (private key used by Actions)
 - `DEMO_REPO_PATH` (optional, defaults to `/home/<DEMO_SSH_USER>/<repo-name>`)
 - `DEMO_PUBLIC_HOST` (optional, IP/domain used by Coracle defaults; falls back to `DEMO_SSH_HOST`)
-- `DEMO_RELAY_SCHEME` (optional: `ws` or `wss`, default `ws`)
+- `DEMO_RELAY_SCHEME` (optional: `ws` or `wss`; if empty, deploy auto-detects from nginx TLS config)
 - `DEMO_STACK_ROOT` (optional, default `/opt/nostr`)
 - `DEMO_WWW_ROOT` (optional, default `/var/www/coracle`)
 - `DEMO_NOSTR_NOTIFY_NSEC` (optional, deploy bot private key in `nsec1...` or hex)
 - `DEMO_NOSTR_NOTIFY_RELAYS` (optional, comma-separated relay URLs for notifications)
 
-`deploy.yml` requires CI quality gate (`ci.yml`) and deploys on each push to `main`.
-It can also be run manually via `workflow_dispatch` with optional overrides (`public_host`, `relay_scheme`, `source_sha`).
+`deploy.yml` requires CI quality gate (`ci.yml`) and runs only via `workflow_dispatch`.
+It supports optional overrides (`public_host`, `relay_scheme`, `source_sha`).
 If `DEMO_NOSTR_NOTIFY_NSEC` is set, deploy runs publish status notes to Nostr.
 Deploy and Bootstrap share one concurrency group per branch and use `cancel-in-progress: true`.
 That means a newer run on the same branch cancels older in-progress deploy/bootstrap runs.
+For stable TLS behavior after enabling HTTPS/WSS, set `DEMO_RELAY_SCHEME=wss`.
 
 `enable-tls-ip.yml` is manual and runs:
 `./scripts/stack.sh enable-tls-ip <public_ip> <email>` on the VPS over SSH.
