@@ -162,6 +162,8 @@ Logs:
 - request/connection limits at nginx relay endpoint
 - payload limit in filter (`MAX_WEBSOCKET_PAYLOAD_SIZE=200000`)
 - relay `created_at` bounds via nostr-relay config
+- relay/filter services are network-restricted to loopback via systemd `IPAddressDeny/Allow`
+- installer config adds firewall deny rules for `8080/tcp` and `8081/tcp` (effective when UFW is enabled)
 
 ## Security notes (important)
 

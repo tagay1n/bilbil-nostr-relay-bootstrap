@@ -16,6 +16,9 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
+IPAddressDeny=any
+IPAddressAllow=127.0.0.0/8
+IPAddressAllow=::1/128
 ReadWritePaths=/opt/nostr/src/nostr-filter
 
 [Install]

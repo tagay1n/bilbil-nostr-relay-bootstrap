@@ -98,5 +98,6 @@ After migration:
 ## Notes for Future Sessions
 
 - Prefer keeping relay/filter behind nginx only; do not expose 8080/8081 publicly.
+- systemd unit hardening includes `IPAddressDeny=any` with loopback allowlist for relay/filter.
 - Keep config files in `/opt/nostr/config` as source of truth.
 - If policy changes are requested (e.g. tag-based strict checks), update `deploy/templates/nostr-filter.env` and redeploy/restart filter.

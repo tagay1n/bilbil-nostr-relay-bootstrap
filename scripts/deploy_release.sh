@@ -233,6 +233,12 @@ build_coracle() {
   run_as_root chown -R www-data:www-data "${WWW_ROOT}"
 }
 
+sync_systemd_units() {
+  run_as_root cp "${ROOT_DIR}/deploy/systemd/nostr-relay.service" /etc/systemd/system/nostr-relay.service
+  run_as_root cp "${ROOT_DIR}/deploy/systemd/nostr-filter.service" /etc/systemd/system/nostr-filter.service
+  run_as_root systemctl daemon-reload
+}
+
 restart_services() {
   run_as_root systemctl restart "${RELAY_SERVICE}" "${FILTER_SERVICE}"
   run_as_root systemctl reload "${NGINX_SERVICE}"
@@ -340,6 +346,9 @@ apply_manifest() {
   build_nostr_filter
   log "[${reason}] Building Coracle"
   build_coracle "${host}" "${relay_scheme}"
+
+  log "[${reason}] Syncing systemd units"
+  sync_systemd_units
 
   log "[${reason}] Restarting services"
   restart_services

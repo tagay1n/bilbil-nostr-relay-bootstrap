@@ -208,10 +208,12 @@ ${SUDO} systemctl reload nginx
 echo "==> Firewall rules"
 ${SUDO} ufw allow OpenSSH >/dev/null 2>&1 || true
 ${SUDO} ufw allow 80/tcp >/dev/null 2>&1 || true
+${SUDO} ufw deny 8080/tcp >/dev/null 2>&1 || true
+${SUDO} ufw deny 8081/tcp >/dev/null 2>&1 || true
 
 UFW_STATUS="$(${SUDO} ufw status | head -n 1 || true)"
 if echo "${UFW_STATUS}" | grep -qi inactive; then
-  echo "UFW is inactive. If you want, enable later with: sudo ufw enable"
+  echo "UFW is inactive. To enforce private relay/filter ports (8080/8081), enable it: sudo ufw enable"
 fi
 
 echo
