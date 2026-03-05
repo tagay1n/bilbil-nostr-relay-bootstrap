@@ -48,7 +48,8 @@ LEGO_STATE_DIR="${STACK_ROOT}/acme"
 CHALLENGE_WEBROOT="/var/www/certbot"
 CERT_DIR="/etc/letsencrypt/live/${PUBLIC_IP}"
 TMPDIR_CLEANUP=""
-LEGO_PROFILE_ARGS=()
+LEGO_RUN_PROFILE_ARGS=()
+LEGO_RENEW_PROFILE_ARGS=()
 
 cleanup() {
   if [[ -n "${TMPDIR_CLEANUP:-}" && -d "${TMPDIR_CLEANUP}" ]]; then
@@ -126,11 +127,20 @@ install_lego_if_needed() {
 }
 
 configure_lego_profile_args() {
-  if lego --help 2>&1 | grep -q -- "--profile"; then
-    LEGO_PROFILE_ARGS=(--profile shortlived)
+  if lego run --help 2>&1 | grep -q -- "--profile"; then
+    LEGO_RUN_PROFILE_ARGS=(--profile shortlived)
   else
-    echo "lego does not support --profile flag; continuing without explicit shortlived profile."
-    LEGO_PROFILE_ARGS=()
+    LEGO_RUN_PROFILE_ARGS=()
+  fi
+
+  if lego renew --help 2>&1 | grep -q -- "--profile"; then
+    LEGO_RENEW_PROFILE_ARGS=(--profile shortlived)
+  else
+    LEGO_RENEW_PROFILE_ARGS=()
+  fi
+
+  if [[ "${#LEGO_RUN_PROFILE_ARGS[@]}" -eq 0 ]]; then
+    echo "lego run does not support --profile; IP certificate issuance may fail on CA profile enforcement." >&2
   fi
 }
 
@@ -150,8 +160,7 @@ issue_or_renew_ip_cert() {
       --domains "${PUBLIC_IP}" \
       --http \
       --http.webroot "${CHALLENGE_WEBROOT}" \
-      "${LEGO_PROFILE_ARGS[@]}" \
-      renew --days 3
+      renew --days 3 "${LEGO_RENEW_PROFILE_ARGS[@]}"
   else
     echo "==> Issuing short-lived IP certificate"
     ${SUDO} lego \
@@ -161,8 +170,7 @@ issue_or_renew_ip_cert() {
       --domains "${PUBLIC_IP}" \
       --http \
       --http.webroot "${CHALLENGE_WEBROOT}" \
-      "${LEGO_PROFILE_ARGS[@]}" \
-      run
+      run "${LEGO_RUN_PROFILE_ARGS[@]}"
   fi
 
   ${SUDO} install -m 0644 "${crt_path}" "${CERT_DIR}/fullchain.pem"
