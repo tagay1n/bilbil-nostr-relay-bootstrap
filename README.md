@@ -201,6 +201,7 @@ Workflows:
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy.yml`
 - `.github/workflows/bootstrap.yml` (manual first-time bootstrap + deploy)
+- `.github/workflows/enable-tls-ip.yml` (manual short-lived IP TLS issue/renew)
 
 ### Required demo secrets
 
@@ -221,6 +222,13 @@ It can also be run manually via `workflow_dispatch` with optional overrides (`pu
 If `DEMO_NOSTR_NOTIFY_NSEC` is set, deploy runs publish status notes to Nostr.
 Deploy and Bootstrap share one concurrency group per branch and use `cancel-in-progress: true`.
 That means a newer run on the same branch cancels older in-progress deploy/bootstrap runs.
+
+`enable-tls-ip.yml` is manual and runs:
+`./scripts/stack.sh enable-tls-ip <public_ip> <email>` on the VPS over SSH.
+Inputs:
+- `public_ip` (required, IPv4)
+- `email` (required, ACME registration email)
+- `source_sha` (optional, commit SHA to run)
 
 ### Bootstrap workflow
 

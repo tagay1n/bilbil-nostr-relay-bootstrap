@@ -1,0 +1,125 @@
+---
+name: Enable TLS IP
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_ip:
+        description: Public IPv4 to issue certificate for
+        required: true
+        type: string
+      email:
+        description: ACME registration email
+        required: true
+        type: string
+      source_sha:
+        description: "Commit SHA to run on VPS (default: current ref SHA)"
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-bootstrap-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  enable_tls_ip:
+    runs-on: ubuntu-latest
+    environment: demo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start SSH agent
+        env:
+          DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+        run: |
+          eval "$(ssh-agent -s)"
+          ssh-add - <<< "${DEMO_SSH_KEY}"
+          echo "SSH_AUTH_SOCK=${SSH_AUTH_SOCK}" >> "${GITHUB_ENV}"
+          echo "SSH_AGENT_PID=${SSH_AGENT_PID}" >> "${GITHUB_ENV}"
+
+      - name: Add host key
+        env:
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
+          DEMO_SSH_PORT: ${{ secrets.DEMO_SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${DEMO_SSH_PORT:-22}" -H "$DEMO_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Enable short-lived IP TLS on VPS
+        env:
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
+          DEMO_SSH_PORT: ${{ secrets.DEMO_SSH_PORT }}
+          DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
+          DEMO_REPO_PATH: ${{ secrets.DEMO_REPO_PATH }}
+          GH_REPOSITORY: ${{ github.repository }}
+          INPUT_PUBLIC_IP: ${{ github.event.inputs.public_ip }}
+          INPUT_EMAIL: ${{ github.event.inputs.email }}
+          INPUT_SOURCE_SHA: ${{ github.event.inputs.source_sha }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          if [[ -z "${INPUT_PUBLIC_IP}" ]]; then
+            echo "public_ip input is required" >&2
+            exit 1
+          fi
+
+          if [[ -z "${INPUT_EMAIL}" ]]; then
+            echo "email input is required" >&2
+            exit 1
+          fi
+
+          REPO_NAME="${GH_REPOSITORY#*/}"
+          REPO_PATH="${DEMO_REPO_PATH:-/home/${DEMO_SSH_USER}/${REPO_NAME}}"
+
+          GIT_SHA="${INPUT_SOURCE_SHA}"
+          if [[ -z "${GIT_SHA}" ]]; then
+            GIT_SHA="${GITHUB_SHA}"
+          fi
+
+          ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
+            "DEMO_REPO_PATH=${REPO_PATH@Q} \
+             GH_REPOSITORY=${GH_REPOSITORY@Q} \
+             GIT_SHA=${GIT_SHA@Q} \
+             PUBLIC_IP=${INPUT_PUBLIC_IP@Q} \
+             ACME_EMAIL=${INPUT_EMAIL@Q} \
+             bash -s" <<'EOSSH'
+          set -euo pipefail
+
+          if ! command -v sudo >/dev/null 2>&1; then
+            echo "sudo is required on target host" >&2
+            exit 1
+          fi
+
+          if ! sudo -n true >/dev/null 2>&1; then
+            echo "Target user requires passwordless sudo for TLS workflow" >&2
+            exit 1
+          fi
+
+          if ! command -v git >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y git
+          fi
+
+          if [[ -z "${DEMO_REPO_PATH}" || "${DEMO_REPO_PATH}" == "/" ]]; then
+            echo "Unsafe DEMO_REPO_PATH: ${DEMO_REPO_PATH}" >&2
+            exit 1
+          fi
+
+          if [[ ! -d "${DEMO_REPO_PATH}/.git" ]]; then
+            git clone "https://github.com/${GH_REPOSITORY}.git" "${DEMO_REPO_PATH}"
+          fi
+
+          cd "${DEMO_REPO_PATH}"
+          git fetch --prune origin
+          git checkout --detach "${GIT_SHA}"
+
+          ./scripts/stack.sh enable-tls-ip "${PUBLIC_IP}" "${ACME_EMAIL}"
+          EOSSH
+
+      - name: Stop SSH agent
+        if: always()
+        run: |
+          if [[ -n "${SSH_AGENT_PID:-}" ]]; then
+            ssh-agent -k >/dev/null 2>&1 || true
+          fi
