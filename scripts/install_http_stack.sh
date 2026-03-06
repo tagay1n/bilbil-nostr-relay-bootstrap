@@ -141,6 +141,7 @@ ${SUDO} chmod 755 /var/www/certbot /var/www/certbot/.well-known /var/www/certbot
 clone_or_update_repo() {
   local url="$1"
   local dst="$2"
+  local branch="${3:-main}"
 
   if [[ "${dst}" != /opt/nostr/src/* ]]; then
     echo "Refusing unsafe clone path: ${dst}" >&2
@@ -150,21 +151,22 @@ clone_or_update_repo() {
   if ${SUDO} test -d "${dst}/.git"; then
     echo "==> Updating $(basename "${dst}")"
     ${SUDO} chown -R nostr:nostr "${dst}"
-    run_as_nostr git -C "${dst}" fetch --prune origin
-    run_as_nostr git -C "${dst}" pull --ff-only
+    run_as_nostr git -C "${dst}" fetch --prune origin "${branch}"
+    run_as_nostr git -C "${dst}" checkout --detach FETCH_HEAD
   else
     if ${SUDO} test -e "${dst}"; then
       echo "==> Resetting non-git path $(basename "${dst}")"
       ${SUDO} rm -rf "${dst}"
     fi
     echo "==> Cloning $(basename "${dst}")"
-    run_as_nostr git clone --depth 1 "${url}" "${dst}"
+    run_as_nostr git clone --depth 1 --branch "${branch}" "${url}" "${dst}"
+    run_as_nostr git -C "${dst}" checkout --detach HEAD
   fi
 }
 
-clone_or_update_repo https://github.com/scsibug/nostr-rs-relay.git /opt/nostr/src/nostr-rs-relay
-clone_or_update_repo https://github.com/imksoo/nostr-filter.git /opt/nostr/src/nostr-filter
-clone_or_update_repo https://github.com/coracle-social/coracle.git /opt/nostr/src/coracle
+clone_or_update_repo https://github.com/scsibug/nostr-rs-relay.git /opt/nostr/src/nostr-rs-relay master
+clone_or_update_repo https://github.com/imksoo/nostr-filter.git /opt/nostr/src/nostr-filter main
+clone_or_update_repo https://github.com/coracle-social/coracle.git /opt/nostr/src/coracle master
 
 if [[ ! -f /opt/nostr/config/nostr-rs-relay.toml ]]; then
   sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/nostr-rs-relay.toml" \
