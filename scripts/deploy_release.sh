@@ -374,6 +374,9 @@ apply_manifest() {
   local filter_repo filter_ref
   local coracle_repo coracle_ref
   local host relay_scheme
+  local relay_binary="${SRC_ROOT}/nostr-rs-relay/target/release/nostr-rs-relay"
+  local relay_ref_file="${STACK_ROOT}/state/relay_ref"
+  local current_relay_ref=""
 
   relay_repo="$(jq -r '.components["nostr-relay"].repo' "${manifest_file}")"
   relay_ref="$(jq -r '.components["nostr-relay"].ref' "${manifest_file}")"
@@ -396,8 +399,18 @@ apply_manifest() {
 
   ensure_base_configs "${host}"
 
-  log "[${reason}] Building nostr-relay"
-  build_nostr_relay
+  if run_as_root test -f "${relay_ref_file}"; then
+    current_relay_ref="$(run_as_root cat "${relay_ref_file}")"
+  fi
+  if run_as_root test -x "${relay_binary}" && [[ "${current_relay_ref}" == "${relay_ref}" ]]; then
+    log "[${reason}] Skipping nostr-relay build (unchanged ref ${relay_ref})"
+  else
+    log "[${reason}] Building nostr-relay"
+    build_nostr_relay
+    run_as_root mkdir -p "${STACK_ROOT}/state"
+    printf '%s\n' "${relay_ref}" | run_as_root tee "${relay_ref_file}" >/dev/null
+    run_as_root chown -R nostr:nostr "${STACK_ROOT}/state"
+  fi
   log "[${reason}] Building nostr-filter"
   build_nostr_filter
   log "[${reason}] Building Coracle"
