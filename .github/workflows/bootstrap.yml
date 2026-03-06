@@ -11,9 +11,10 @@ on:
       relay_scheme:
         description: Relay scheme for Coracle defaults
         required: false
-        default: ws
+        default: auto
         type: choice
         options:
+          - auto
           - ws
           - wss
 
@@ -78,8 +79,11 @@ jobs:
           fi
 
           RELAY_SCHEME="${INPUT_RELAY_SCHEME}"
+          if [[ -z "${RELAY_SCHEME}" || "${RELAY_SCHEME}" == "auto" ]]; then
+            RELAY_SCHEME="${DEMO_RELAY_SCHEME_SECRET}"
+          fi
           if [[ -z "${RELAY_SCHEME}" ]]; then
-            RELAY_SCHEME="${DEMO_RELAY_SCHEME_SECRET:-ws}"
+            RELAY_SCHEME="auto"
           fi
 
           ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
@@ -126,10 +130,20 @@ jobs:
           export STACK_ROOT="${DEMO_STACK_ROOT:-/opt/nostr}"
           export WWW_ROOT="${DEMO_WWW_ROOT:-/var/www/coracle}"
 
+          if [[ "${RELAY_SCHEME}" == "auto" ]]; then
+            if [[ -f /etc/nginx/sites-available/bilbil-http.conf ]] && grep -Eq 'listen[[:space:]]+443' /etc/nginx/sites-available/bilbil-http.conf; then
+              RELAY_SCHEME_RESOLVED="wss"
+            else
+              RELAY_SCHEME_RESOLVED="ws"
+            fi
+          else
+            RELAY_SCHEME_RESOLVED="${RELAY_SCHEME}"
+          fi
+
           ./scripts/stack.sh deploy \
             --env demo \
             --public-host "${PUBLIC_HOST}" \
-            --relay-scheme "${RELAY_SCHEME}" \
+            --relay-scheme "${RELAY_SCHEME_RESOLVED}" \
             --source-sha "${GIT_SHA}"
           EOSSH
 
