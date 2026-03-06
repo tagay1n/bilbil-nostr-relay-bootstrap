@@ -1,13 +1,13 @@
 [Unit]
-Description=Bılbıl Nostr Relay (rrainn/nostr-relay)
+Description=Bılbıl Nostr Relay (scsibug/nostr-rs-relay)
 After=network.target
 
 [Service]
 Type=simple
 User=nostr
 Group=nostr
-WorkingDirectory=/opt/nostr/src/nostr-relay
-ExecStart=/usr/bin/node dist/src/WebSocket.js
+WorkingDirectory=/opt/nostr/src/nostr-rs-relay
+ExecStart=/opt/nostr/src/nostr-rs-relay/target/release/nostr-rs-relay --config /opt/nostr/config/nostr-rs-relay.toml
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
@@ -17,7 +17,7 @@ ProtectHome=true
 IPAddressDeny=any
 IPAddressAllow=127.0.0.0/8
 IPAddressAllow=::1/128
-ReadWritePaths=/opt/nostr/src/nostr-relay
+ReadWritePaths=/opt/nostr/data/nostr-rs-relay /opt/nostr/src/nostr-rs-relay
 
 [Install]
 WantedBy=multi-user.target

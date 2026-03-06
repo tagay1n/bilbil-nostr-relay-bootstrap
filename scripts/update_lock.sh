@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LOCK_FILE="${ROOT_DIR}/deploy/versions.lock.json"
 
 repos=(
-  "nostr-relay https://github.com/rrainn/nostr-relay.git"
+  "nostr-relay https://github.com/scsibug/nostr-rs-relay.git"
   "nostr-filter https://github.com/imksoo/nostr-filter.git"
   "coracle https://github.com/coracle-social/coracle.git"
 )

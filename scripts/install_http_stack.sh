@@ -89,8 +89,20 @@ run_as_nostr() {
   fi
 }
 
+ensure_rust_toolchain() {
+  local rustup_bin="/opt/nostr/.cargo/bin/rustup"
+
+  if ! ${SUDO} test -x "${rustup_bin}"; then
+    echo "==> Installing rustup toolchain for nostr user"
+    run_as_nostr bash -lc 'curl https://sh.rustup.rs -sSf | sh -s -- -y'
+  fi
+
+  run_as_nostr bash -lc "\"${rustup_bin}\" toolchain install stable"
+  run_as_nostr bash -lc "\"${rustup_bin}\" default stable"
+}
+
 echo "==> Installing base packages"
-BASE_PACKAGES=(curl git ca-certificates gnupg build-essential nginx ufw jq)
+BASE_PACKAGES=(curl git ca-certificates gnupg build-essential cmake protobuf-compiler pkg-config libssl-dev zlib1g-dev nginx ufw jq)
 MISSING_PACKAGES=()
 for pkg in "${BASE_PACKAGES[@]}"; do
   if ! is_pkg_installed "${pkg}"; then
@@ -122,7 +134,7 @@ echo "==> Creating system user and directories"
 if ! id -u nostr >/dev/null 2>&1; then
   ${SUDO} useradd --system --create-home --home /opt/nostr --shell /usr/sbin/nologin nostr
 fi
-${SUDO} mkdir -p /opt/nostr/src /opt/nostr/config /var/www/coracle /var/www/certbot/.well-known/acme-challenge
+${SUDO} mkdir -p /opt/nostr/src /opt/nostr/config /opt/nostr/data/nostr-rs-relay /var/www/coracle /var/www/certbot/.well-known/acme-challenge
 ${SUDO} chown -R nostr:nostr /opt/nostr
 ${SUDO} chmod 755 /var/www/certbot /var/www/certbot/.well-known /var/www/certbot/.well-known/acme-challenge
 
@@ -150,26 +162,28 @@ clone_or_update_repo() {
   fi
 }
 
-clone_or_update_repo https://github.com/rrainn/nostr-relay.git /opt/nostr/src/nostr-relay
+clone_or_update_repo https://github.com/scsibug/nostr-rs-relay.git /opt/nostr/src/nostr-rs-relay
 clone_or_update_repo https://github.com/imksoo/nostr-filter.git /opt/nostr/src/nostr-filter
 clone_or_update_repo https://github.com/coracle-social/coracle.git /opt/nostr/src/coracle
 
-if [[ ! -f /opt/nostr/config/nostr-relay.config.json ]]; then
-  ${SUDO} cp "${REPO_DIR}/deploy/templates/nostr-relay.config.json" /opt/nostr/config/nostr-relay.config.json
-  ${SUDO} chown nostr:nostr /opt/nostr/config/nostr-relay.config.json
+if [[ ! -f /opt/nostr/config/nostr-rs-relay.toml ]]; then
+  sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/nostr-rs-relay.toml" \
+    | ${SUDO} tee /opt/nostr/config/nostr-rs-relay.toml >/dev/null
+  ${SUDO} chown nostr:nostr /opt/nostr/config/nostr-rs-relay.toml
 fi
-${SUDO} ln -sfn /opt/nostr/config/nostr-relay.config.json /opt/nostr/src/nostr-relay/config.json
 
 if [[ ! -f /opt/nostr/config/nostr-filter.env ]]; then
   ${SUDO} cp "${REPO_DIR}/deploy/templates/nostr-filter.env" /opt/nostr/config/nostr-filter.env
   ${SUDO} chown nostr:nostr /opt/nostr/config/nostr-filter.env
 fi
 
+ensure_rust_toolchain
+
 if [[ "${SKIP_BUILD}" == "true" ]]; then
   echo "==> Skipping component builds (--skip-build)"
 else
   echo "==> Building nostr-relay"
-  run_as_nostr bash -lc 'cd /opt/nostr/src/nostr-relay && npm ci --no-audit --no-fund && npm run build'
+  run_as_nostr bash -lc 'cd /opt/nostr/src/nostr-rs-relay && ~/.cargo/bin/cargo build --release'
 
   echo "==> Building nostr-filter"
   run_as_nostr bash -lc 'cd /opt/nostr/src/nostr-filter && npm ci --no-audit --no-fund && npx tsc'
@@ -228,8 +242,3 @@ echo "Filter logs: sudo journalctl -u nostr-filter -f"
 if [[ "${SKIP_BUILD}" == "true" ]]; then
   echo "Next step: run deploy (stack is installed, builds are skipped)."
 fi
-echo
-echo "IMPORTANT:"
-echo "  rrainn/nostr-relay currently requires write pubkeys in allowedPublicKeys."
-echo "  Edit /opt/nostr/config/nostr-relay.config.json and set allowedPublicKeys,"
-echo "  then restart relay: sudo systemctl restart nostr-relay"

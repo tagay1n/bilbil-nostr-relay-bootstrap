@@ -1,0 +1,14 @@
+[info]
+relay_url = "ws://__PUBLIC_HOST__/relay"
+name = "Bılbıl Tatar Relay"
+description = "Tatar-focused Nostr relay"
+
+[database]
+data_directory = "/opt/nostr/data/nostr-rs-relay"
+
+[network]
+address = "127.0.0.1"
+port = 8080
+
+[options]
+reject_future_seconds = 900

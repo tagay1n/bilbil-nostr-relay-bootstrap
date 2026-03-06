@@ -3,8 +3,8 @@
   "updated_at": "2026-03-05T00:00:00Z",
   "components": {
     "nostr-relay": {
-      "repo": "https://github.com/rrainn/nostr-relay.git",
-      "ref": "2de318d77c14c7f36ec64bfc1e7f02c68f94b8c6"
+      "repo": "https://github.com/scsibug/nostr-rs-relay.git",
+      "ref": "64cfcaf44af498bf7969a8be5d6f0115abf98e4a"
     },
     "nostr-filter": {
       "repo": "https://github.com/imksoo/nostr-filter.git",

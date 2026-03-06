@@ -5,9 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEV_DIR="${ROOT_DIR}/.dev"
 SRC_DIR="${DEV_DIR}/src"
 CFG_DIR="${DEV_DIR}/config"
+DATA_DIR="${DEV_DIR}/data"
 LOG_DIR="${DEV_DIR}/logs"
 
-mkdir -p "${SRC_DIR}" "${CFG_DIR}" "${LOG_DIR}"
+mkdir -p "${SRC_DIR}" "${CFG_DIR}" "${DATA_DIR}" "${LOG_DIR}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -19,6 +20,7 @@ require_cmd() {
 require_cmd git
 require_cmd node
 require_cmd npm
+require_cmd cargo
 
 NODE_MAJOR="$(node -v | sed -E 's/^v([0-9]+).*/\1/')"
 if [[ "${NODE_MAJOR}" -lt 20 ]]; then
@@ -40,12 +42,27 @@ clone_or_update_repo() {
   fi
 }
 
-clone_or_update_repo https://github.com/rrainn/nostr-relay.git "${SRC_DIR}/nostr-relay"
+clone_or_update_repo https://github.com/scsibug/nostr-rs-relay.git "${SRC_DIR}/nostr-rs-relay"
 clone_or_update_repo https://github.com/imksoo/nostr-filter.git "${SRC_DIR}/nostr-filter"
 clone_or_update_repo https://github.com/coracle-social/coracle.git "${SRC_DIR}/coracle"
 
-if [[ ! -f "${CFG_DIR}/nostr-relay.config.json" ]]; then
-  cp "${ROOT_DIR}/deploy/templates/nostr-relay.config.json" "${CFG_DIR}/nostr-relay.config.json"
+if [[ ! -f "${CFG_DIR}/nostr-rs-relay.toml" ]]; then
+  cat > "${CFG_DIR}/nostr-rs-relay.toml" <<EOF
+[info]
+relay_url = "ws://127.0.0.1:8081"
+name = "Bılbıl Dev Relay"
+description = "Bılbıl local development relay"
+
+[database]
+data_directory = "${DATA_DIR}/nostr-rs-relay"
+
+[network]
+address = "127.0.0.1"
+port = 8080
+
+[options]
+reject_future_seconds = 900
+EOF
 fi
 if [[ ! -f "${CFG_DIR}/nostr-filter.env" ]]; then
   cp "${ROOT_DIR}/deploy/templates/nostr-filter.env" "${CFG_DIR}/nostr-filter.env"
@@ -58,14 +75,12 @@ VITE_SEARCH_RELAYS=ws://127.0.0.1:8081
 VITE_LOG_LEVEL=info
 ENVEOF
 
-ln -sfn "${CFG_DIR}/nostr-relay.config.json" "${SRC_DIR}/nostr-relay/config.json"
 cp "${CFG_DIR}/coracle.env.local" "${SRC_DIR}/coracle/.env.local"
 
 echo "Building nostr-relay"
 (
-  cd "${SRC_DIR}/nostr-relay"
-  npm ci
-  npm run build
+  cd "${SRC_DIR}/nostr-rs-relay"
+  cargo build --release
 )
 
 echo "Building nostr-filter"
@@ -147,7 +162,7 @@ start_foreground() {
   trap 'cleanup; exit 130' INT TERM
   trap 'cleanup' EXIT
 
-  start_component "nostr-relay" "cd '${SRC_DIR}/nostr-relay' && exec node dist/src/WebSocket.js"
+  start_component "nostr-relay" "cd '${SRC_DIR}/nostr-rs-relay' && exec target/release/nostr-rs-relay --config '${CFG_DIR}/nostr-rs-relay.toml'"
   if ! wait_for_tcp "127.0.0.1" "8080" "20"; then
     echo "nostr-relay did not become ready on 127.0.0.1:8080" >&2
     exit 1

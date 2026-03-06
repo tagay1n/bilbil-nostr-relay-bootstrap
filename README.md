@@ -2,8 +2,8 @@
 
 This repo contains deployment tooling for a test-first stack on Ubuntu 22:
 
-- `rrainn/nostr-relay` as backend relay (`127.0.0.1:8080`)
-- `imksoo/nostr-filter` as policy/filter relay (`127.0.0.1:8081`)
+- `scsibug/nostr-rs-relay` as backend relay (`127.0.0.1:8080`)
+- `imksoo/nostr-filter` as policy/filter relay (`:8081`, should be firewalled/private)
 - self-hosted Coracle static frontend served by nginx (`:80`)
 - public relay URL for clients: `ws://<host>/relay`
 
@@ -14,10 +14,9 @@ This repo contains deployment tooling for a test-first stack on Ubuntu 22:
   - `kind:1` text notes accepted only if note content includes `#татарча`
   - non-`kind:1` events allowed (metadata, reactions, etc.)
 
-- Current upstream relay constraints (`rrainn/nostr-relay`):
-  - writes are accepted only for pubkeys listed in `allowedPublicKeys`
-  - supported write kinds are limited by relay code (`0`, `1`, `5`)
-  - so "open write" and "all non-kind:1 allowed" are not fully met without patching/replacing backend relay
+- Relay notes:
+  - open write works by default
+  - optional author allowlist is available via `[authorization].pubkey_whitelist` in relay config
 
 Note: the current rule checks note content with a regex. In most clients, hashtags appear in content, so this works for MVP.
 
@@ -116,6 +115,9 @@ sudo journalctl -u nostr-filter -f
 ./scripts/stack.sh smoke-test <host>
 ```
 
+Relay config file:
+- `/opt/nostr/config/nostr-rs-relay.toml`
+
 Update pinned upstream versions:
 
 ```bash
@@ -150,8 +152,8 @@ Endpoints:
 - Coracle: `http://127.0.0.1:5173`
 - Relay (filtered): `ws://127.0.0.1:8081`
 
-To allow publishing from your local test account, add its pubkey to:
-- `.dev/config/nostr-relay.config.json` -> `allowedPublicKeys`
+Local prerequisite:
+- Rust toolchain with `cargo` installed (used to build `nostr-rs-relay`)
 
 Helpers:
 
@@ -178,9 +180,10 @@ Logs:
 - nginx websocket reverse proxy
 - request/connection limits at nginx relay endpoint
 - payload limit in filter (`MAX_WEBSOCKET_PAYLOAD_SIZE=200000`)
-- relay `created_at` bounds via nostr-relay config
-- relay/filter services are network-restricted to loopback via systemd `IPAddressDeny/Allow`
+- relay future timestamp bound (`reject_future_seconds`) via `nostr-rs-relay` config
+- relay binds to `127.0.0.1:8080` via relay config
 - installer config adds firewall deny rules for `8080/tcp` and `8081/tcp` (effective when UFW is enabled)
+- `nostr-filter` can listen on `:8081`; keep host/cloud firewall blocking public access
 
 ## Security notes (important)
 
@@ -255,4 +258,4 @@ For private repos, pre-clone manually on VPS or adjust bootstrap auth strategy.
 - add blocked CIDRs in `/opt/nostr/config/nostr-filter.env`
 - optional PoW gate (`NIP-13`) via relay/filter extension
 - optional write allowlist for trusted pubkeys
-- replace/patch backend relay to support true open-write and broader kind coverage
+- tune `nostr-rs-relay` limits/auth (`[limits]`, `[authorization]`) as traffic grows

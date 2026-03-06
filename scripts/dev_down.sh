@@ -31,4 +31,4 @@ stop_by_pattern() {
 
 stop_by_pattern "coracle" "pnpm run dev -- --host 127.0.0.1 --port 5173|vite --host -- --host 127.0.0.1 --port 5173"
 stop_by_pattern "nostr-filter" "node --max-old-space-size=1024 filter.js"
-stop_by_pattern "nostr-relay" "node dist/src/WebSocket.js"
+stop_by_pattern "nostr-relay" "target/release/nostr-rs-relay --config .*nostr-rs-relay.toml"

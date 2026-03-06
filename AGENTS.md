@@ -3,7 +3,7 @@
 ## Project Purpose
 
 Build an MVP "Tatar Twitter" on Nostr:
-- backend relay: `rrainn/nostr-relay`
+- backend relay: `scsibug/nostr-rs-relay`
 - policy layer: `imksoo/nostr-filter`
 - web client: self-hosted Coracle
 
@@ -12,7 +12,7 @@ Current goal is test-first on raw IP and HTTP/WS, then migrate to domain + TLS (
 ## Current Architecture
 
 - `nostr-relay` listens on `127.0.0.1:8080` (systemd)
-- `nostr-filter` listens on `127.0.0.1:8081` (systemd), proxies upstream to relay
+- `nostr-filter` listens on `:8081` (systemd), proxies upstream to relay
 - `nginx` listens on `:80`
   - `/` -> Coracle static files in `/var/www/coracle`
   - `/relay` -> websocket proxy to `127.0.0.1:8081`
@@ -24,14 +24,11 @@ Public endpoints (HTTP mode):
 ## Policy Decisions (MVP)
 
 - Intended access model: open write
-- Current relay implementation constraint:
-  - writes are accepted only for pubkeys listed in `allowedPublicKeys` in relay config
-  - backend relay write kinds are limited (`0`, `1`, `5`)
 - `kind:1` text notes allowed only with `#татарча` in content (filter layer)
 - anti-abuse baseline:
   - nginx rate/connection limits on `/relay`
   - filter payload size cap
-  - relay `created_at` bounds
+  - relay future timestamp bound (`reject_future_seconds`)
 
 ## Repo Contents
 
@@ -104,7 +101,8 @@ Temporary IPv4 TLS (short-lived cert):
 ## Notes for Future Sessions
 
 - Prefer keeping relay/filter behind nginx only; do not expose 8080/8081 publicly.
-- systemd unit hardening includes `IPAddressDeny=any` with loopback allowlist for relay/filter.
+- `nostr-relay` is bound to `127.0.0.1:8080` in relay config.
+- `nostr-filter` may bind to `:8081`; rely on host/cloud firewall deny rules to keep it private.
 - Keep config files in `/opt/nostr/config` as source of truth.
 - For TLS environments, prefer `DEMO_RELAY_SCHEME=wss` in workflow secrets.
 - If policy changes are requested (e.g. tag-based strict checks), update `deploy/templates/nostr-filter.env` and redeploy/restart filter.

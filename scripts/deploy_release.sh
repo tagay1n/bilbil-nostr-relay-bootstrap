@@ -115,6 +115,57 @@ run_as_nostr() {
   fi
 }
 
+is_pkg_installed() {
+  local pkg="$1"
+  dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q "install ok installed"
+}
+
+apt_update_with_retry() {
+  local max_attempts="${APT_UPDATE_MAX_ATTEMPTS:-5}"
+  local retry_delay="${APT_UPDATE_RETRY_DELAY_SECONDS:-5}"
+  local attempt
+
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    if run_as_root apt-get update -o Acquire::Retries=3; then
+      return 0
+    fi
+    if (( attempt < max_attempts )); then
+      sleep "${retry_delay}"
+    fi
+  done
+
+  echo "apt-get update failed after ${max_attempts} attempts" >&2
+  return 1
+}
+
+ensure_relay_build_dependencies() {
+  local packages=(build-essential cmake protobuf-compiler pkg-config libssl-dev zlib1g-dev)
+  local missing=()
+  local pkg
+
+  for pkg in "${packages[@]}"; do
+    if ! is_pkg_installed "${pkg}"; then
+      missing+=("${pkg}")
+    fi
+  done
+
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    apt_update_with_retry
+    run_as_root apt-get install -y "${missing[@]}"
+  fi
+}
+
+ensure_rust_toolchain() {
+  local rustup_bin="/opt/nostr/.cargo/bin/rustup"
+
+  if ! run_as_root test -x "${rustup_bin}"; then
+    run_as_nostr bash -lc 'curl https://sh.rustup.rs -sSf | sh -s -- -y'
+  fi
+
+  run_as_nostr bash -lc "\"${rustup_bin}\" toolchain install stable"
+  run_as_nostr bash -lc "\"${rustup_bin}\" default stable"
+}
+
 check_prerequisites() {
   require_cmd jq
   require_cmd git
@@ -158,6 +209,9 @@ check_prerequisites() {
     exit 1
   fi
 
+  ensure_relay_build_dependencies
+  ensure_rust_toolchain
+
   run_as_root mkdir -p "${RELEASES_DIR}"
   run_as_root chown nostr:nostr "${RELEASES_DIR}"
 }
@@ -186,25 +240,27 @@ clone_or_update() {
 }
 
 ensure_base_configs() {
-  if ! run_as_root test -f "${CFG_ROOT}/nostr-relay.config.json"; then
-    run_as_root cp "${ROOT_DIR}/deploy/templates/nostr-relay.config.json" "${CFG_ROOT}/nostr-relay.config.json"
-    run_as_root chown nostr:nostr "${CFG_ROOT}/nostr-relay.config.json"
+  local host="$1"
+  run_as_root mkdir -p "${STACK_ROOT}/data/nostr-rs-relay"
+  run_as_root chown -R nostr:nostr "${STACK_ROOT}/data"
+
+  if ! run_as_root test -f "${CFG_ROOT}/nostr-rs-relay.toml"; then
+    local tmp_relay_cfg
+    tmp_relay_cfg="$(mktemp)"
+    sed "s|__PUBLIC_HOST__|${host}|g" "${ROOT_DIR}/deploy/templates/nostr-rs-relay.toml" > "${tmp_relay_cfg}"
+    run_as_root cp "${tmp_relay_cfg}" "${CFG_ROOT}/nostr-rs-relay.toml"
+    run_as_root chown nostr:nostr "${CFG_ROOT}/nostr-rs-relay.toml"
+    rm -f "${tmp_relay_cfg}"
   fi
 
   if ! run_as_root test -f "${CFG_ROOT}/nostr-filter.env"; then
     run_as_root cp "${ROOT_DIR}/deploy/templates/nostr-filter.env" "${CFG_ROOT}/nostr-filter.env"
     run_as_root chown nostr:nostr "${CFG_ROOT}/nostr-filter.env"
   fi
-
-  run_as_root ln -sfn "${CFG_ROOT}/nostr-relay.config.json" "${SRC_ROOT}/nostr-relay/config.json"
-
-  if run_as_root jq -e '.allowedPublicKeys | type == "array" and length == 0' "${CFG_ROOT}/nostr-relay.config.json" >/dev/null 2>&1; then
-    log "WARNING: allowedPublicKeys is empty; relay will reject writes with current rrainn/nostr-relay behavior"
-  fi
 }
 
 build_nostr_relay() {
-  run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/nostr-relay"'" && npm ci --no-audit --no-fund && npm run build'
+  run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/nostr-rs-relay"'" && ~/.cargo/bin/cargo build --release'
 }
 
 build_nostr_filter() {
@@ -334,11 +390,11 @@ apply_manifest() {
   fi
 
   log "[${reason}] Checking out pinned sources"
-  clone_or_update "${relay_repo}" "${relay_ref}" "${SRC_ROOT}/nostr-relay"
+  clone_or_update "${relay_repo}" "${relay_ref}" "${SRC_ROOT}/nostr-rs-relay"
   clone_or_update "${filter_repo}" "${filter_ref}" "${SRC_ROOT}/nostr-filter"
   clone_or_update "${coracle_repo}" "${coracle_ref}" "${SRC_ROOT}/coracle"
 
-  ensure_base_configs
+  ensure_base_configs "${host}"
 
   log "[${reason}] Building nostr-relay"
   build_nostr_relay

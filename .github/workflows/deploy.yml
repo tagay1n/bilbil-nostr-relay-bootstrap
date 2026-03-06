@@ -11,9 +11,10 @@ on:
       relay_scheme:
         description: Relay scheme override for Coracle defaults
         required: false
-        default: ws
+        default: auto
         type: choice
         options:
+          - auto
           - ws
           - wss
       source_sha:
@@ -79,7 +80,7 @@ jobs:
           fi
 
           RELAY_SCHEME="${INPUT_RELAY_SCHEME}"
-          if [[ -z "${RELAY_SCHEME}" ]]; then
+          if [[ -z "${RELAY_SCHEME}" || "${RELAY_SCHEME}" == "auto" ]]; then
             RELAY_SCHEME="${DEMO_RELAY_SCHEME}"
           fi
           if [[ -z "${RELAY_SCHEME}" ]]; then
