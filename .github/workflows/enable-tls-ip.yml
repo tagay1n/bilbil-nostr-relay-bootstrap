@@ -79,7 +79,10 @@ jobs:
             GIT_SHA="${GITHUB_SHA}"
           fi
 
-          ssh -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
+          ssh \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=120 \
+            -p "${DEMO_SSH_PORT:-22}" "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
             "DEMO_REPO_PATH=${REPO_PATH@Q} \
              GH_REPOSITORY=${GH_REPOSITORY@Q} \
              GIT_SHA=${GIT_SHA@Q} \

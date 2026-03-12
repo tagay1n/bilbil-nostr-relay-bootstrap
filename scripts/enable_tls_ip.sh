@@ -50,6 +50,7 @@ CERT_DIR="/etc/letsencrypt/live/${PUBLIC_IP}"
 TMPDIR_CLEANUP=""
 LEGO_RUN_PROFILE_ARGS=()
 LEGO_RENEW_PROFILE_ARGS=()
+LEGO_RENEW_TIMING_ARGS=()
 
 cleanup() {
   if [[ -n "${TMPDIR_CLEANUP:-}" && -d "${TMPDIR_CLEANUP}" ]]; then
@@ -142,6 +143,13 @@ configure_lego_profile_args() {
   if [[ "${#LEGO_RUN_PROFILE_ARGS[@]}" -eq 0 ]]; then
     echo "lego run does not support --profile; IP certificate issuance may fail on CA profile enforcement." >&2
   fi
+
+  if lego renew --help 2>&1 | grep -q -- "--no-random-sleep"; then
+    LEGO_RENEW_TIMING_ARGS=(--no-random-sleep)
+  else
+    LEGO_RENEW_TIMING_ARGS=()
+    echo "lego renew does not support --no-random-sleep; renew may wait before ACME call." >&2
+  fi
 }
 
 issue_or_renew_ip_cert() {
@@ -161,7 +169,7 @@ issue_or_renew_ip_cert() {
       --domains "${PUBLIC_IP}" \
       --http \
       --http.webroot "${CHALLENGE_WEBROOT}" \
-      renew --days 3 "${LEGO_RENEW_PROFILE_ARGS[@]}"
+      renew --days 3 "${LEGO_RENEW_TIMING_ARGS[@]}" "${LEGO_RENEW_PROFILE_ARGS[@]}"
   else
     echo "==> Issuing short-lived IP certificate"
     ${SUDO} lego \
