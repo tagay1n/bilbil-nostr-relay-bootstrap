@@ -9,13 +9,20 @@ on:
         required: false
         type: string
       email:
-        description: ACME registration email
-        required: true
+        description: ACME registration email (optional if DEMO_ACME_EMAIL secret is set)
+        required: false
+        type: string
+      renew_after_days:
+        description: Renew only when cert age reaches this many days (default 5)
+        required: false
+        default: "5"
         type: string
       source_sha:
         description: "Commit SHA to run on VPS (default: current ref SHA)"
         required: false
         type: string
+  schedule:
+    - cron: "17 2 * * *"
 
 concurrency:
   group: deploy-bootstrap-${{ github.ref_name }}
@@ -55,9 +62,11 @@ jobs:
           DEMO_REPO_PATH: ${{ secrets.DEMO_REPO_PATH }}
           DEMO_STACK_ROOT: ${{ secrets.DEMO_STACK_ROOT }}
           DEMO_WWW_ROOT: ${{ secrets.DEMO_WWW_ROOT }}
+          DEMO_ACME_EMAIL: ${{ secrets.DEMO_ACME_EMAIL }}
           GH_REPOSITORY: ${{ github.repository }}
           INPUT_PUBLIC_IP: ${{ github.event.inputs.public_ip }}
           INPUT_EMAIL: ${{ github.event.inputs.email }}
+          INPUT_RENEW_AFTER_DAYS: ${{ github.event.inputs.renew_after_days }}
           INPUT_SOURCE_SHA: ${{ github.event.inputs.source_sha }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
@@ -66,8 +75,21 @@ jobs:
             PUBLIC_IP="${DEMO_SSH_HOST}"
           fi
 
-          if [[ -z "${INPUT_EMAIL}" ]]; then
-            echo "email input is required" >&2
+          ACME_EMAIL="${INPUT_EMAIL}"
+          if [[ -z "${ACME_EMAIL}" ]]; then
+            ACME_EMAIL="${DEMO_ACME_EMAIL}"
+          fi
+          if [[ -z "${ACME_EMAIL}" ]]; then
+            echo "ACME email is required (input email or DEMO_ACME_EMAIL secret)" >&2
+            exit 1
+          fi
+
+          RENEW_AFTER_DAYS="${INPUT_RENEW_AFTER_DAYS:-5}"
+          if [[ -z "${RENEW_AFTER_DAYS}" ]]; then
+            RENEW_AFTER_DAYS="5"
+          fi
+          if ! [[ "${RENEW_AFTER_DAYS}" =~ ^[0-9]+$ ]] || (( RENEW_AFTER_DAYS < 1 )); then
+            echo "renew_after_days must be a positive integer, got: ${RENEW_AFTER_DAYS}" >&2
             exit 1
           fi
 
@@ -89,7 +111,8 @@ jobs:
              DEMO_STACK_ROOT=${DEMO_STACK_ROOT@Q} \
              DEMO_WWW_ROOT=${DEMO_WWW_ROOT@Q} \
              PUBLIC_IP=${PUBLIC_IP@Q} \
-             ACME_EMAIL=${INPUT_EMAIL@Q} \
+             ACME_EMAIL=${ACME_EMAIL@Q} \
+             RENEW_AFTER_DAYS=${RENEW_AFTER_DAYS@Q} \
              bash -s" <<'EOSSH'
           set -euo pipefail
 
@@ -127,6 +150,25 @@ jobs:
           if ! sudo -n test -d "${STACK_ROOT}/src/coracle" || ! sudo -n test -d "${WWW_ROOT}"; then
             echo "TLS prerequisites not found, running install-http --skip-build first..."
             ./scripts/stack.sh install-http --skip-build "${PUBLIC_IP}"
+          fi
+
+          CERT_PATH="/etc/letsencrypt/live/${PUBLIC_IP}/fullchain.pem"
+          if sudo -n test -f "${CERT_PATH}"; then
+            cert_not_before="$(sudo openssl x509 -in "${CERT_PATH}" -noout -startdate | cut -d= -f2 || true)"
+            cert_not_before_epoch="$(date -u -d "${cert_not_before}" +%s 2>/dev/null || true)"
+            now_epoch="$(date -u +%s)"
+
+            if [[ "${cert_not_before_epoch}" =~ ^[0-9]+$ ]]; then
+              cert_age_seconds=$(( now_epoch - cert_not_before_epoch ))
+              renew_after_seconds=$(( RENEW_AFTER_DAYS * 86400 ))
+              if (( cert_age_seconds < renew_after_seconds )); then
+                cert_age_days=$(( cert_age_seconds / 86400 ))
+                echo "Certificate age ${cert_age_days}d is below renew_after_days=${RENEW_AFTER_DAYS}; skipping renewal."
+                exit 0
+              fi
+            else
+              echo "Warning: could not parse certificate start date; proceeding with renewal."
+            fi
           fi
 
           ./scripts/stack.sh enable-tls-ip "${PUBLIC_IP}" "${ACME_EMAIL}"

@@ -204,7 +204,7 @@ Workflows:
 - `.github/workflows/ci.yml` (manual + reusable by other workflows)
 - `.github/workflows/deploy.yml` (manual deploy)
 - `.github/workflows/bootstrap.yml` (manual first-time bootstrap + deploy)
-- `.github/workflows/enable-tls-ip.yml` (manual short-lived IP TLS issue/renew)
+- `.github/workflows/enable-tls-ip.yml` (manual + scheduled short-lived IP TLS issue/renew)
 
 ### Required demo secrets
 
@@ -217,6 +217,7 @@ Workflows:
 - `DEMO_RELAY_SCHEME` (optional: `ws` or `wss`; if empty, deploy auto-detects from nginx TLS config)
 - `DEMO_STACK_ROOT` (optional, default `/opt/nostr`)
 - `DEMO_WWW_ROOT` (optional, default `/var/www/coracle`)
+- `DEMO_ACME_EMAIL` (recommended for scheduled TLS-IP renewal if manual input is absent)
 - `DEMO_NOSTR_NOTIFY_NSEC` (optional, deploy bot private key in `nsec1...` or hex)
 - `DEMO_NOSTR_NOTIFY_RELAYS` (optional, comma-separated relay URLs for notifications)
 
@@ -227,11 +228,13 @@ Deploy and Bootstrap share one concurrency group per branch and use `cancel-in-p
 That means a newer run on the same branch cancels older in-progress deploy/bootstrap runs.
 For stable TLS behavior after enabling HTTPS/WSS, set `DEMO_RELAY_SCHEME=wss`.
 
-`enable-tls-ip.yml` is manual and runs:
+`enable-tls-ip.yml` is manual and also runs on a daily schedule.
+It runs:
 `./scripts/stack.sh enable-tls-ip <public_ip> <email>` on the VPS over SSH.
 Inputs:
 - `public_ip` (optional, IPv4; defaults to `DEMO_SSH_HOST`)
-- `email` (required, ACME registration email)
+- `email` (optional if `DEMO_ACME_EMAIL` secret is set)
+- `renew_after_days` (optional, default `5`; renew only when cert age reaches this threshold)
 - `source_sha` (optional, commit SHA to run)
 It also respects `DEMO_STACK_ROOT` and `DEMO_WWW_ROOT` secrets (same defaults as deploy).
 If TLS prerequisites are missing, it automatically runs `install-http --skip-build` first.

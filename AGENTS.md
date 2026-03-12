@@ -75,7 +75,7 @@ CI/CD workflows:
 - `.github/workflows/ci.yml` (manual + reusable by deploy/bootstrap)
 - `.github/workflows/deploy.yml` (manual deploy)
 - `.github/workflows/bootstrap.yml` (manual bootstrap/install + deploy)
-- `.github/workflows/enable-tls-ip.yml` (manual short-lived IP TLS issue/renew)
+- `.github/workflows/enable-tls-ip.yml` (manual + scheduled short-lived IP TLS issue/renew)
 - `deploy` and `bootstrap` share one concurrency group per branch with `cancel-in-progress: true`
 
 Nostr notifications:
