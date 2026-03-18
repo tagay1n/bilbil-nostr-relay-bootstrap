@@ -155,13 +155,15 @@ configure_lego_profile_args() {
 issue_or_renew_ip_cert() {
   local crt_path="${LEGO_STATE_DIR}/certificates/${PUBLIC_IP}.crt"
   local key_path="${LEGO_STATE_DIR}/certificates/${PUBLIC_IP}.key"
+  local renew_log
+  renew_log="$(mktemp)"
 
   ${SUDO} mkdir -p "${LEGO_STATE_DIR}" "${CHALLENGE_WEBROOT}/.well-known/acme-challenge" "${CERT_DIR}"
   ${SUDO} chmod 755 "${CHALLENGE_WEBROOT}" "${CHALLENGE_WEBROOT}/.well-known" "${CHALLENGE_WEBROOT}/.well-known/acme-challenge"
 
   if ${SUDO} test -f "${crt_path}" && ${SUDO} test -f "${key_path}"; then
     echo "==> Renewing short-lived IP certificate"
-    ${SUDO} lego \
+    if ! ${SUDO} lego \
       --accept-tos \
       --email "${EMAIL}" \
       --disable-cn \
@@ -169,7 +171,24 @@ issue_or_renew_ip_cert() {
       --domains "${PUBLIC_IP}" \
       --http \
       --http.webroot "${CHALLENGE_WEBROOT}" \
-      renew --days 3 "${LEGO_RENEW_TIMING_ARGS[@]}" "${LEGO_RENEW_PROFILE_ARGS[@]}"
+      renew --days 3 "${LEGO_RENEW_TIMING_ARGS[@]}" "${LEGO_RENEW_PROFILE_ARGS[@]}" \
+      2>&1 | tee "${renew_log}"; then
+      if grep -qi "not registered" "${renew_log}"; then
+        echo "Renew failed because ACME account is missing; re-registering with run."
+        ${SUDO} lego \
+          --accept-tos \
+          --email "${EMAIL}" \
+          --disable-cn \
+          --path "${LEGO_STATE_DIR}" \
+          --domains "${PUBLIC_IP}" \
+          --http \
+          --http.webroot "${CHALLENGE_WEBROOT}" \
+          run "${LEGO_RUN_PROFILE_ARGS[@]}"
+      else
+        rm -f "${renew_log}"
+        return 1
+      fi
+    fi
   else
     echo "==> Issuing short-lived IP certificate"
     ${SUDO} lego \
@@ -182,6 +201,7 @@ issue_or_renew_ip_cert() {
       --http.webroot "${CHALLENGE_WEBROOT}" \
       run "${LEGO_RUN_PROFILE_ARGS[@]}"
   fi
+  rm -f "${renew_log}"
 
   ${SUDO} install -m 0644 "${crt_path}" "${CERT_DIR}/fullchain.pem"
   ${SUDO} install -m 0600 "${key_path}" "${CERT_DIR}/privkey.pem"
