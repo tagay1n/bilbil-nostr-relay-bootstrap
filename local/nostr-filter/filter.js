@@ -77,6 +77,16 @@ const whitelistedPubkeys = (typeof process.env.WHITELISTED_PUBKEYS !== "undefine
     process.env.WHITELISTED_PUBKEYS !== "")
     ? process.env.WHITELISTED_PUBKEYS.split(",").map((pubkey) => pubkey.trim())
     : [];
+
+function hasTatarchaTag(event) {
+    if (!Array.isArray(event.tags)) return false;
+    return event.tags.some((t) => {
+        const tagName = String(t[0] || "").toLowerCase();
+        const tagValue = String(t[1] || "").toLowerCase();
+        return tagName === "t" && tagValue === "татарча";
+    });
+}
+
 // Filter proxy events
 const filterProxyEvents = process.env.FILTER_PROXY_EVENTS === "true";
 // Forward request headers to upstream
@@ -339,6 +349,10 @@ function listen() {
                 const socketAndSubscriptionId = `${socketId}:${subscriptionId}`;
                 subscriptionIdAndIPAddress.set(socketAndSubscriptionId, ip);
                 subscriptionIdAndPortNumber.set(socketAndSubscriptionId, port);
+                 if (!hasTatarchaTag(event[1])) {
+                    shouldRelay = false;
+                    because = "Blocked event by missing t=татарча tag";
+                    }
                 if (event[1].kind === 1) {
                     // 正規表現パターンとのマッチ判定
                     for (const filter of contentFilters) {
