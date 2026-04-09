@@ -12,8 +12,3 @@ port = 8080
 
 [options]
 reject_future_seconds = 900
-
-[rules.tatarcha-required]
-message = "#татарча тэгы кирәк"
-require_tags = ["t", "т"]
-values = ["татарча"]

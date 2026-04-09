@@ -24,7 +24,7 @@ Public endpoints (HTTP mode):
 ## Policy Decisions (MVP)
 
 - Intended access model: open write
-- `kind:1` text notes allowed only with `#татарча` in content (filter layer)
+- `kind:1` text notes allowed only if content contains `#татарча` or tag `t=татарча`/`т=татарча` is present (filter layer)
 - anti-abuse baseline:
   - nginx rate/connection limits on `/relay`
   - filter payload size cap
@@ -41,6 +41,7 @@ Public endpoints (HTTP mode):
 - Rollback: `scripts/rollback_last_success.sh`
 - Lock updater: `scripts/update_lock.sh`
 - Version lock: `deploy/versions.lock.json`
+- Runtime filter override: `local/nostr-filter/filter.js`
 - Systemd units: `deploy/systemd/`
 - Nginx configs: `deploy/nginx/`
 - Templates: `deploy/templates/`
@@ -105,4 +106,4 @@ Temporary IPv4 TLS (short-lived cert):
 - `nostr-filter` may bind to `:8081`; rely on host/cloud firewall deny rules to keep it private.
 - Keep config files in `/opt/nostr/config` as source of truth.
 - For TLS environments, prefer `DEMO_RELAY_SCHEME=wss` in workflow secrets.
-- If policy changes are requested (e.g. tag-based strict checks), update `deploy/templates/nostr-filter.env` and redeploy/restart filter.
+- If policy changes are requested (e.g. tag/content strict checks), update `local/nostr-filter/filter.js` (and `deploy/templates/nostr-filter.env` if needed), then redeploy/restart filter.

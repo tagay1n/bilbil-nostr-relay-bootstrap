@@ -55,7 +55,7 @@ const upstreamWsForFastBotUrl = process.env.UPSTREAM_WS_FOR_FAST_BOT_URL ??
 // 書き込み用の上流リレーとの接続(あらかじめ接続しておいて、WS接続直後のイベントでも取りこぼしを防ぐため)
 let upstreamWriteSocket = new ws_1.default(upstreamWsForFastBotUrl);
 // NostrのEvent contentsのフィルタリング用正規表現パターンの配列
-const contentFilters = Object.keys(process.env)
+const rawContentFilters = Object.keys(process.env)
     .filter(key => key.startsWith('MUTE_FILTER_'))
     .map(key => {
     const pattern = process.env[key];
@@ -66,6 +66,17 @@ const contentFilters = Object.keys(process.env)
     else {
         return new RegExp(match[1], match[2]);
     }
+});
+const LEGACY_TATARCHA_CONTENT_FILTER_SOURCE = "^(?![\\s\\S]*#татарча)[\\s\\S]*$";
+const contentFilters = rawContentFilters.filter((regex) => {
+    if (regex.source === LEGACY_TATARCHA_CONTENT_FILTER_SOURCE) {
+        console.info(JSON.stringify({
+            msg: "Skipping legacy tatarcha content filter; policy is handled by tag/content gate",
+            filter: `/${regex.source}/${regex.flags}`,
+        }));
+        return false;
+    }
+    return true;
 });
 console.info(JSON.stringify({ msg: "process.env", ...process.env }));
 // ブロックするユーザーの公開鍵の配列
@@ -79,12 +90,21 @@ const whitelistedPubkeys = (typeof process.env.WHITELISTED_PUBKEYS !== "undefine
     : [];
 
 function hasTatarchaTag(event) {
-    if (!Array.isArray(event.tags)) return false;
+    if (!event || typeof event !== "object" || !Array.isArray(event.tags))
+        return false;
     return event.tags.some((t) => {
         const tagName = String(t[0] || "").toLowerCase();
-        const tagValue = String(t[1] || "").toLowerCase();
-        return tagName === "t" && tagValue === "татарча";
+        const tagValue = String(t[1] || "")
+            .toLowerCase()
+            .replace(/^#/, "")
+            .trim();
+        return (tagName === "t" || tagName === "т") && tagValue === "татарча";
     });
+}
+function hasTatarchaContent(content) {
+    if (typeof content !== "string")
+        return false;
+    return /(^|[^0-9A-Za-z_])#татарча\b/iu.test(content);
 }
 
 // Filter proxy events
@@ -345,18 +365,25 @@ function listen() {
             let isMessageEdited = false;
             // kind1だけフィルタリングを行う
             if (event[0] === "EVENT") {
-                const subscriptionId = event[1].id;
+                const eventBody = event[1];
+                if (!eventBody || typeof eventBody !== "object") {
+                    shouldRelay = false;
+                    because = "Blocked invalid EVENT payload";
+                }
+                const subscriptionId = eventBody && typeof eventBody.id === "string"
+                    ? eventBody.id
+                    : `invalid-${(0, uuid_1.v7)()}`;
                 const socketAndSubscriptionId = `${socketId}:${subscriptionId}`;
                 subscriptionIdAndIPAddress.set(socketAndSubscriptionId, ip);
                 subscriptionIdAndPortNumber.set(socketAndSubscriptionId, port);
-                 if (!hasTatarchaTag(event[1])) {
-                    shouldRelay = false;
-                    because = "Blocked event by missing t=татарча tag";
+                if (shouldRelay && eventBody.kind === 1) {
+                    if (!hasTatarchaTag(eventBody) && !hasTatarchaContent(eventBody.content)) {
+                        shouldRelay = false;
+                        because = "Blocked event: kind:1 requires #татарча in content or t=татарча tag";
                     }
-                if (event[1].kind === 1) {
                     // 正規表現パターンとのマッチ判定
                     for (const filter of contentFilters) {
-                        if (filter.test(event[1].content)) {
+                        if (shouldRelay && filter.test(eventBody.content)) {
                             shouldRelay = false;
                             because = "Blocked event by content filter";
                             break;
@@ -364,7 +391,7 @@ function listen() {
                     }
                     // ブロックする公開鍵のリストとのマッチ判定
                     for (const block of blockedPubkeys) {
-                        if (event[1].pubkey === block) {
+                        if (eventBody.pubkey === block) {
                             shouldRelay = false;
                             because = "Blocked event by pubkey";
                             break;
@@ -372,18 +399,20 @@ function listen() {
                     }
                     // Proxyイベントをフィルターする
                     if (filterProxyEvents) {
-                        for (const tag of event[1].tags) {
-                            if (tag[0] === "proxy") {
-                                shouldRelay = false;
-                                because = "Blocked event by proxied event";
-                                break;
+                        if (Array.isArray(eventBody.tags)) {
+                            for (const tag of eventBody.tags) {
+                                if (tag[0] === "proxy") {
+                                    shouldRelay = false;
+                                    because = "Blocked event by proxied event";
+                                    break;
+                                }
                             }
                         }
                     }
                 }
                 // Allow write any event only for whitelisted pubkeys in downstream messages
                 if (shouldRelay && whitelistedPubkeys.length > 0) {
-                    const isWhitelistPubkey = whitelistedPubkeys.includes(event[1].pubkey);
+                    const isWhitelistPubkey = whitelistedPubkeys.includes(eventBody.pubkey);
                     if (!isWhitelistPubkey) {
                         shouldRelay = false;
                         because = "Only whitelisted pubkey can write events";
@@ -397,7 +426,7 @@ function listen() {
                         port,
                         socketId,
                         connectionCountForIP,
-                        event: event[1],
+                        event: eventBody,
                     })));
                 }
                 else {
@@ -408,7 +437,7 @@ function listen() {
                         port,
                         socketId,
                         connectionCountForIP,
-                        event: event[1],
+                        event: eventBody,
                     })));
                 }
             }
@@ -647,10 +676,18 @@ function listen() {
                 resetIdleTimeout(upstreamSocket);
                 let shouldRelay = true;
                 let because = "";
-                if (event[0] === "EVENT" && event[2].kind === 1) {
+                const upstreamEvent = event[2];
+                if (event[0] === "EVENT" &&
+                    upstreamEvent &&
+                    typeof upstreamEvent === "object" &&
+                    upstreamEvent.kind === 1) {
+                    if (!hasTatarchaTag(upstreamEvent) && !hasTatarchaContent(upstreamEvent.content)) {
+                        shouldRelay = false;
+                        because = "Blocked upstream event: kind:1 requires #татарча in content or t=татарча tag";
+                    }
                     // 正規表現パターンとのマッチ判定
                     for (const filter of contentFilters) {
-                        if (filter.test(event[2].content)) {
+                        if (shouldRelay && filter.test(upstreamEvent.content)) {
                             shouldRelay = false;
                             because = "Blocked event by content filter";
                             break;
@@ -658,7 +695,7 @@ function listen() {
                     }
                     // ブロックする公開鍵のリストとのマッチ判定
                     for (const block of blockedPubkeys) {
-                        if (event[2].pubkey === block) {
+                        if (upstreamEvent.pubkey === block) {
                             shouldRelay = false;
                             because = "Blocked event by pubkey";
                             break;

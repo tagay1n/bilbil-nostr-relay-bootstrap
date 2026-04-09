@@ -89,6 +89,11 @@ echo "Building nostr-filter"
   npm ci
   npx tsc
 )
+if [[ ! -f "${ROOT_DIR}/local/nostr-filter/filter.js" ]]; then
+  echo "Missing filter override file: ${ROOT_DIR}/local/nostr-filter/filter.js" >&2
+  exit 1
+fi
+cp "${ROOT_DIR}/local/nostr-filter/filter.js" "${SRC_DIR}/nostr-filter/filter.js"
 
 echo "Installing Coracle deps"
 (

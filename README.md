@@ -11,14 +11,17 @@ This repo contains deployment tooling for a test-first stack on Ubuntu 22:
 
 - Intended policy:
   - open write
-  - `kind:1` text notes accepted only if note content includes `#татарча`
+  - `kind:1` text notes accepted only if either:
+    - content includes `#татарча`, or
+    - event has tag `["t","татарча"]` (or `["т","татарча"]`)
   - non-`kind:1` events allowed (metadata, reactions, etc.)
 
 - Relay notes:
   - open write works by default
   - optional author allowlist is available via `[authorization].pubkey_whitelist` in relay config
 
-Note: the current rule checks note content with a regex. In most clients, hashtags appear in content, so this works for MVP.
+Note: this policy is enforced by the local runtime override file `local/nostr-filter/filter.js`,
+which is copied into the upstream `nostr-filter` source during install/deploy/dev-up builds.
 
 ## Files
 
@@ -31,6 +34,7 @@ Note: the current rule checks note content with a regex. In most clients, hashta
 - Manual rollback: `scripts/rollback_last_success.sh`
 - Lock updater: `scripts/update_lock.sh`
 - Locked upstream versions: `deploy/versions.lock.json`
+- Runtime filter override: `local/nostr-filter/filter.js`
 
 ## 1) Install on VPS (HTTP + WS)
 

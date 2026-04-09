@@ -264,7 +264,17 @@ build_nostr_relay() {
 }
 
 build_nostr_filter() {
+  local override_file="${ROOT_DIR}/local/nostr-filter/filter.js"
+
   run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/nostr-filter"'" && npm ci --no-audit --no-fund && npx tsc'
+
+  if [[ ! -f "${override_file}" ]]; then
+    echo "Missing filter override file: ${override_file}" >&2
+    return 1
+  fi
+
+  run_as_root cp "${override_file}" "${SRC_ROOT}/nostr-filter/filter.js"
+  run_as_root chown nostr:nostr "${SRC_ROOT}/nostr-filter/filter.js"
 }
 
 build_coracle() {

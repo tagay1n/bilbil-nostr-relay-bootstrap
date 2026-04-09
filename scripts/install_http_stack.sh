@@ -189,6 +189,12 @@ else
 
   echo "==> Building nostr-filter"
   run_as_nostr bash -lc 'cd /opt/nostr/src/nostr-filter && npm ci --no-audit --no-fund && npx tsc'
+  if [[ ! -f "${REPO_DIR}/local/nostr-filter/filter.js" ]]; then
+    echo "Missing filter override file: ${REPO_DIR}/local/nostr-filter/filter.js" >&2
+    exit 1
+  fi
+  ${SUDO} cp "${REPO_DIR}/local/nostr-filter/filter.js" /opt/nostr/src/nostr-filter/filter.js
+  ${SUDO} chown nostr:nostr /opt/nostr/src/nostr-filter/filter.js
 
   echo "==> Building Coracle static bundle"
   sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" \
