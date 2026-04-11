@@ -206,7 +206,7 @@ Logs:
 
 Workflows:
 - `.github/workflows/ci.yml` (manual + reusable by other workflows)
-- `.github/workflows/deploy.yml` (manual deploy)
+- `.github/workflows/deploy.yml` (deploy on push to `main` + manual trigger)
 - `.github/workflows/bootstrap.yml` (manual first-time bootstrap + deploy)
 - `.github/workflows/enable-tls-ip.yml` (manual + scheduled short-lived IP TLS issue/renew)
 
@@ -225,7 +225,7 @@ Workflows:
 - `DEMO_NOSTR_NOTIFY_NSEC` (optional, deploy bot private key in `nsec1...` or hex)
 - `DEMO_NOSTR_NOTIFY_RELAYS` (optional, comma-separated relay URLs for notifications)
 
-`deploy.yml` requires CI quality gate (`ci.yml`) and runs only via `workflow_dispatch`.
+`deploy.yml` requires CI quality gate (`ci.yml`) and runs on push to `main` or via `workflow_dispatch`.
 It supports optional overrides (`public_host`, `relay_scheme`, `source_sha`).
 If `DEMO_NOSTR_NOTIFY_NSEC` is set, deploy runs publish status notes to Nostr.
 Deploy and Bootstrap share one concurrency group per branch and use `cancel-in-progress: true`.
