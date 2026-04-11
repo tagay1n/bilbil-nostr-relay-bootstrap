@@ -215,6 +215,31 @@ Logs:
 - NIP-13 (proof-of-work for anti-spam):  
   https://raw.githubusercontent.com/nostr-protocol/nips/master/13.md
 
+## Anti-spam strategy (recommended)
+
+Use layered controls instead of one regex rule:
+
+- Kind allowlist first (default-deny writes):
+  - accept only event kinds needed for your product
+  - reject all other kinds by default (for example marketing/app-specific kinds like `30023` if you do not need them)
+- Content/tag policy on top of allowed kinds:
+  - for `kind:1`, require `#татарча` in content or `t=татарча` tag
+- Writer gating:
+  - optional `NIP-42` auth (`AUTH` challenge)
+  - optional proof-of-work threshold (`NIP-13`)
+  - optional paid/invite write access for abuse-heavy periods
+- Rate limits:
+  - keep nginx connection/request limits
+  - keep relay/filter payload and connection caps
+  - add per-pubkey write-rate limits where possible
+- Reputation and moderation:
+  - maintain `BLOCKED_PUBKEYS` for known abusers
+  - use moderator review/reports (`NIP-56`) as signal, not auto-ban input
+- Operations:
+  - log block reasons clearly
+  - review top rejected kinds/pubkeys regularly
+  - tune policy from data, not from one-off spam events
+
 ## CI/CD (GitHub Actions)
 
 Workflows:
