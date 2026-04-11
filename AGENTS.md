@@ -25,7 +25,8 @@ Public endpoints (HTTP mode):
 
 - Intended access model: open write
 - write-kind allowlist in filter (`ALLOWED_EVENT_KINDS`), default: `0,1,3,5,6,7,10002`
-- `kind:1` text notes allowed only if content contains `#татарча` or tag `t=татарча`/`т=татарча` is present (filter layer)
+- top-level `kind:1` notes allowed only if content contains `#татарча` or tag `t=татарча`/`т=татарча` is present
+- reply-like `kind:1` notes (`e`/`a` thread tags) may omit `#татарча`
 - anti-abuse baseline:
   - nginx rate/connection limits on `/relay`
   - filter payload size cap

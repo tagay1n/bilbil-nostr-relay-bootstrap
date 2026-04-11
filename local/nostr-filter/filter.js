@@ -112,6 +112,15 @@ function hasTatarchaContent(content) {
         return false;
     return /(^|[^0-9A-Za-z_])#татарча\b/iu.test(content);
 }
+function isReplyLikeKind1Event(event) {
+    if (!event || typeof event !== "object" || !Array.isArray(event.tags)) {
+        return false;
+    }
+    return event.tags.some((tag) => {
+        const tagName = String((tag === null || tag === void 0 ? void 0 : tag[0]) || "").toLowerCase();
+        return tagName === "e" || tagName === "a";
+    });
+}
 function normalizeEventKind(rawKind) {
     if (typeof rawKind === "number" && Number.isInteger(rawKind)) {
         return rawKind;
@@ -402,9 +411,10 @@ function listen() {
                     because = `Blocked event: unsupported kind ${eventKind}`;
                 }
                 if (shouldRelay && eventKind === 1) {
-                    if (!hasTatarchaTag(eventBody) && !hasTatarchaContent(eventBody.content)) {
+                    const isReplyLikeEvent = isReplyLikeKind1Event(eventBody);
+                    if (!isReplyLikeEvent && !hasTatarchaTag(eventBody) && !hasTatarchaContent(eventBody.content)) {
                         shouldRelay = false;
-                        because = "Blocked event: kind:1 requires #татарча in content or t=татарча tag";
+                        because = "Blocked event: top-level kind:1 requires #татарча in content or t=татарча tag";
                     }
                     // 正規表現パターンとのマッチ判定
                     for (const filter of contentFilters) {
@@ -714,9 +724,13 @@ function listen() {
                         shouldRelay = false;
                         because = `Blocked upstream event: unsupported kind ${upstreamKind}`;
                     }
-                    if (shouldRelay && upstreamKind === 1 && !hasTatarchaTag(upstreamEvent) && !hasTatarchaContent(upstreamEvent.content)) {
+                    if (shouldRelay &&
+                        upstreamKind === 1 &&
+                        !isReplyLikeKind1Event(upstreamEvent) &&
+                        !hasTatarchaTag(upstreamEvent) &&
+                        !hasTatarchaContent(upstreamEvent.content)) {
                         shouldRelay = false;
-                        because = "Blocked upstream event: kind:1 requires #татарча in content or t=татарча tag";
+                        because = "Blocked upstream event: top-level kind:1 requires #татарча in content or t=татарча tag";
                     }
                     // 正規表現パターンとのマッチ判定
                     for (const filter of contentFilters) {
