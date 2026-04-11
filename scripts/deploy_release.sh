@@ -241,6 +241,7 @@ clone_or_update() {
 
 ensure_base_configs() {
   local host="$1"
+  local default_allowed_event_kinds="0,1,3,5,6,7,10002"
   run_as_root mkdir -p "${STACK_ROOT}/data/nostr-rs-relay"
   run_as_root chown -R nostr:nostr "${STACK_ROOT}/data"
 
@@ -255,6 +256,11 @@ ensure_base_configs() {
 
   if ! run_as_root test -f "${CFG_ROOT}/nostr-filter.env"; then
     run_as_root cp "${ROOT_DIR}/deploy/templates/nostr-filter.env" "${CFG_ROOT}/nostr-filter.env"
+    run_as_root chown nostr:nostr "${CFG_ROOT}/nostr-filter.env"
+  fi
+
+  if ! run_as_root grep -Eq '^ALLOWED_EVENT_KINDS=' "${CFG_ROOT}/nostr-filter.env"; then
+    printf '\nALLOWED_EVENT_KINDS=%s\n' "${default_allowed_event_kinds}" | run_as_root tee -a "${CFG_ROOT}/nostr-filter.env" >/dev/null
     run_as_root chown nostr:nostr "${CFG_ROOT}/nostr-filter.env"
   fi
 }

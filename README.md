@@ -11,13 +11,14 @@ This repo contains deployment tooling for a test-first stack on Ubuntu 22:
 
 - Intended policy:
   - open write
+  - write-kind allowlist in filter (`ALLOWED_EVENT_KINDS`), default: `0,1,3,5,6,7,10002`
   - `kind:1` text notes accepted only if either:
     - content includes `#татарча`, or
     - event has tag `["t","татарча"]` (or `["т","татарча"]`)
-  - non-`kind:1` events allowed (metadata, reactions, etc.)
+  - non-`kind:1` events are allowed only when kind is in allowlist
 
 - Relay notes:
-  - open write works by default
+  - current `scsibug/nostr-rs-relay` build may still reject some kinds upstream (it is stricter than the filter defaults)
   - optional author allowlist is available via `[authorization].pubkey_whitelist` in relay config
 
 Note: this policy is enforced by the local runtime override file `local/nostr-filter/filter.js`,

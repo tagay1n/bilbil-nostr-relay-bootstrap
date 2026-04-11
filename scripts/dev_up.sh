@@ -67,6 +67,9 @@ fi
 if [[ ! -f "${CFG_DIR}/nostr-filter.env" ]]; then
   cp "${ROOT_DIR}/deploy/templates/nostr-filter.env" "${CFG_DIR}/nostr-filter.env"
 fi
+if ! grep -Eq '^ALLOWED_EVENT_KINDS=' "${CFG_DIR}/nostr-filter.env"; then
+  printf '\nALLOWED_EVENT_KINDS=%s\n' "0,1,3,5,6,7,10002" >> "${CFG_DIR}/nostr-filter.env"
+fi
 cat > "${CFG_DIR}/coracle.env.local" <<'ENVEOF'
 VITE_APP_NAME=Bılbıl Dev
 VITE_APP_DESCRIPTION=Bılbıl local development

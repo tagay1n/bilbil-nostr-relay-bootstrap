@@ -78,6 +78,12 @@ const contentFilters = rawContentFilters.filter((regex) => {
     }
     return true;
 });
+const allowedEventKinds = new Set((process.env.ALLOWED_EVENT_KINDS ?? "0,1,3,5,6,7,10002")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isInteger(value)));
 console.info(JSON.stringify({ msg: "process.env", ...process.env }));
 // ブロックするユーザーの公開鍵の配列
 const blockedPubkeys = (typeof process.env.BLOCKED_PUBKEYS !== "undefined" && process.env.BLOCKED_PUBKEYS !== "")
@@ -105,6 +111,15 @@ function hasTatarchaContent(content) {
     if (typeof content !== "string")
         return false;
     return /(^|[^0-9A-Za-z_])#татарча\b/iu.test(content);
+}
+function normalizeEventKind(rawKind) {
+    if (typeof rawKind === "number" && Number.isInteger(rawKind)) {
+        return rawKind;
+    }
+    if (typeof rawKind === "string" && /^\d+$/.test(rawKind)) {
+        return Number.parseInt(rawKind, 10);
+    }
+    return null;
 }
 
 // Filter proxy events
@@ -145,6 +160,7 @@ console.info(JSON.stringify({
     upstreamWsUrl,
     upstreamWsForFastBotUrl,
     contentFilters: contentFilters.map(regex => `/${regex.source}/${regex.flags}`),
+    allowedEventKinds: Array.from(allowedEventKinds).sort((a, b) => a - b),
     blockedIPAddresses: cidrRanges,
 }));
 // 全体の接続数
@@ -376,7 +392,16 @@ function listen() {
                 const socketAndSubscriptionId = `${socketId}:${subscriptionId}`;
                 subscriptionIdAndIPAddress.set(socketAndSubscriptionId, ip);
                 subscriptionIdAndPortNumber.set(socketAndSubscriptionId, port);
-                if (shouldRelay && eventBody.kind === 1) {
+                const eventKind = normalizeEventKind(eventBody.kind);
+                if (shouldRelay && eventKind === null) {
+                    shouldRelay = false;
+                    because = "Blocked event: invalid kind";
+                }
+                if (shouldRelay && !allowedEventKinds.has(eventKind)) {
+                    shouldRelay = false;
+                    because = `Blocked event: unsupported kind ${eventKind}`;
+                }
+                if (shouldRelay && eventKind === 1) {
                     if (!hasTatarchaTag(eventBody) && !hasTatarchaContent(eventBody.content)) {
                         shouldRelay = false;
                         because = "Blocked event: kind:1 requires #татарча in content or t=татарча tag";
@@ -679,9 +704,17 @@ function listen() {
                 const upstreamEvent = event[2];
                 if (event[0] === "EVENT" &&
                     upstreamEvent &&
-                    typeof upstreamEvent === "object" &&
-                    upstreamEvent.kind === 1) {
-                    if (!hasTatarchaTag(upstreamEvent) && !hasTatarchaContent(upstreamEvent.content)) {
+                    typeof upstreamEvent === "object") {
+                    const upstreamKind = normalizeEventKind(upstreamEvent.kind);
+                    if (upstreamKind === null) {
+                        shouldRelay = false;
+                        because = "Blocked upstream event: invalid kind";
+                    }
+                    else if (!allowedEventKinds.has(upstreamKind)) {
+                        shouldRelay = false;
+                        because = `Blocked upstream event: unsupported kind ${upstreamKind}`;
+                    }
+                    if (shouldRelay && upstreamKind === 1 && !hasTatarchaTag(upstreamEvent) && !hasTatarchaContent(upstreamEvent.content)) {
                         shouldRelay = false;
                         because = "Blocked upstream event: kind:1 requires #татарча in content or t=татарча tag";
                     }

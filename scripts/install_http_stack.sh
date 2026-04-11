@@ -179,6 +179,11 @@ if [[ ! -f /opt/nostr/config/nostr-filter.env ]]; then
   ${SUDO} chown nostr:nostr /opt/nostr/config/nostr-filter.env
 fi
 
+if ! ${SUDO} grep -Eq '^ALLOWED_EVENT_KINDS=' /opt/nostr/config/nostr-filter.env; then
+  printf '\nALLOWED_EVENT_KINDS=%s\n' "0,1,3,5,6,7,10002" | ${SUDO} tee -a /opt/nostr/config/nostr-filter.env >/dev/null
+  ${SUDO} chown nostr:nostr /opt/nostr/config/nostr-filter.env
+fi
+
 ensure_rust_toolchain
 
 if [[ "${SKIP_BUILD}" == "true" ]]; then
