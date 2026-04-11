@@ -107,3 +107,4 @@ Temporary IPv4 TLS (short-lived cert):
 - Keep config files in `/opt/nostr/config` as source of truth.
 - For TLS environments, prefer `DEMO_RELAY_SCHEME=wss` in workflow secrets.
 - If policy changes are requested (e.g. tag/content strict checks), update `local/nostr-filter/filter.js` (and `deploy/templates/nostr-filter.env` if needed), then redeploy/restart filter.
+- For event kind references, see README section "Nostr kinds references" and the upstream NIPs repo.

@@ -202,6 +202,19 @@ Logs:
   - rotate compromised keys immediately
 - For censorship-heavy regions, plan transport fallback outside protocol scope (for example Tor/VPN/bridges).
 
+## Nostr kinds references
+
+- NIP-01 (event structure, kind classes/ranges, relay behavior):  
+  https://raw.githubusercontent.com/nostr-protocol/nips/master/01.md
+- NIPs repository (event kinds index/table):  
+  https://github.com/nostr-protocol/nips
+- NIP-23 (`kind:30023`, long-form content):  
+  https://raw.githubusercontent.com/nostr-protocol/nips/master/23.md
+- NIP-42 (relay auth `AUTH`):  
+  https://raw.githubusercontent.com/nostr-protocol/nips/master/42.md
+- NIP-13 (proof-of-work for anti-spam):  
+  https://raw.githubusercontent.com/nostr-protocol/nips/master/13.md
+
 ## CI/CD (GitHub Actions)
 
 Workflows:
