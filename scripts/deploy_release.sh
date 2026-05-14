@@ -83,6 +83,7 @@ CFG_ROOT="${STACK_ROOT}/config"
 RELEASES_DIR="${STACK_ROOT}/releases"
 LAST_SUCCESS_FILE="${RELEASES_DIR}/last_success.json"
 WWW_ROOT="${WWW_ROOT:-/var/www/coracle}"
+PNPM_VERSION="${PNPM_VERSION:-10.30.3}"
 
 RELAY_SERVICE="${RELAY_SERVICE:-nostr-relay}"
 FILTER_SERVICE="${FILTER_SERVICE:-nostr-filter}"
@@ -297,7 +298,7 @@ build_coracle() {
   run_as_root chown nostr:nostr "${SRC_ROOT}/coracle/.env.local"
   rm -f "${tmp_env}"
 
-  run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+  run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@'"${PNPM_VERSION}"' --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
 
   run_as_root mkdir -p "${WWW_ROOT}"
   run_as_root find "${WWW_ROOT:?}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +

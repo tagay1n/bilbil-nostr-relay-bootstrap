@@ -7,6 +7,7 @@ SRC_DIR="${DEV_DIR}/src"
 CFG_DIR="${DEV_DIR}/config"
 DATA_DIR="${DEV_DIR}/data"
 LOG_DIR="${DEV_DIR}/logs"
+PNPM_VERSION="${PNPM_VERSION:-10.30.3}"
 
 mkdir -p "${SRC_DIR}" "${CFG_DIR}" "${DATA_DIR}" "${LOG_DIR}"
 
@@ -101,7 +102,7 @@ cp "${ROOT_DIR}/local/nostr-filter/filter.js" "${SRC_DIR}/nostr-filter/filter.js
 echo "Installing Coracle deps"
 (
   cd "${SRC_DIR}/coracle"
-  corepack prepare pnpm@latest --activate >/dev/null 2>&1 || true
+  corepack prepare pnpm@"${PNPM_VERSION}" --activate >/dev/null 2>&1 || true
   # On low-resource hosts pnpm may occasionally fail with transient EAGAIN while
   # materializing node_modules; retry with conservative concurrency.
   attempt=1

@@ -43,6 +43,7 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 STACK_ROOT="${STACK_ROOT:-/opt/nostr}"
 SRC_ROOT="${STACK_ROOT}/src"
 WWW_ROOT="${WWW_ROOT:-/var/www/coracle}"
+PNPM_VERSION="${PNPM_VERSION:-10.30.3}"
 
 LEGO_STATE_DIR="${STACK_ROOT}/acme"
 CHALLENGE_WEBROOT="/var/www/certbot"
@@ -237,9 +238,9 @@ rebuild_coracle_wss() {
   rm -f "${tmp_env}"
 
   if [[ "${EUID}" -eq 0 ]]; then
-    runuser -u nostr -- bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+    runuser -u nostr -- bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@'"${PNPM_VERSION}"' --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
   else
-    sudo -u nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+    sudo -u nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@'"${PNPM_VERSION}"' --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
   fi
 
   ${SUDO} find "${WWW_ROOT:?}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +

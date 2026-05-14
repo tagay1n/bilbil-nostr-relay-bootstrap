@@ -55,6 +55,7 @@ if [[ "${EUID}" -eq 0 ]]; then
 else
   SUDO="sudo"
 fi
+PNPM_VERSION="${PNPM_VERSION:-10.30.3}"
 
 apt_update_with_retry() {
   local max_attempts="${APT_UPDATE_MAX_ATTEMPTS:-5}"
@@ -205,7 +206,7 @@ else
   sed "s|__PUBLIC_HOST__|${PUBLIC_HOST}|g" "${REPO_DIR}/deploy/templates/coracle.env.local" \
     | ${SUDO} tee /opt/nostr/src/coracle/.env.local >/dev/null
   ${SUDO} chown nostr:nostr /opt/nostr/src/coracle/.env.local
-  run_as_nostr bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+  run_as_nostr bash -lc 'cd /opt/nostr/src/coracle && corepack prepare pnpm@'"${PNPM_VERSION}"' --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
 
   ${SUDO} rm -rf /var/www/coracle/*
   ${SUDO} cp -a /opt/nostr/src/coracle/dist/. /var/www/coracle/

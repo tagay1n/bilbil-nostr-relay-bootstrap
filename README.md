@@ -159,6 +159,7 @@ Endpoints:
 
 Local prerequisite:
 - Rust toolchain with `cargo` installed (used to build `nostr-rs-relay`)
+- Coracle builds use `PNPM_VERSION` (default `10.30.3`) instead of `pnpm@latest` to keep Node.js compatibility stable.
 
 Helpers:
 

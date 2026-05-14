@@ -33,6 +33,7 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 STACK_ROOT="${STACK_ROOT:-/opt/nostr}"
 SRC_ROOT="${STACK_ROOT}/src"
 WWW_ROOT="${WWW_ROOT:-/var/www/coracle}"
+PNPM_VERSION="${PNPM_VERSION:-10.30.3}"
 
 if ! ${SUDO} test -d "${SRC_ROOT}/coracle"; then
   echo "Missing ${SRC_ROOT}/coracle. Bootstrap first with install-http." >&2
@@ -51,7 +52,7 @@ ${SUDO} cp "${tmp_env}" "${SRC_ROOT}/coracle/.env.local"
 ${SUDO} chown nostr:nostr "${SRC_ROOT}/coracle/.env.local"
 rm -f "${tmp_env}"
 
-run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@latest --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
+run_as_nostr bash -lc 'cd "'"${SRC_ROOT}/coracle"'" && corepack prepare pnpm@'"${PNPM_VERSION}"' --activate && CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile && pnpm exec vite build'
 
 ${SUDO} find "${WWW_ROOT:?}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 ${SUDO} cp -a "${SRC_ROOT}/coracle/dist/." "${WWW_ROOT}/"
