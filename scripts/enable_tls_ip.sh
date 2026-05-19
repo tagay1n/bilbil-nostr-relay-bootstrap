@@ -52,6 +52,7 @@ TMPDIR_CLEANUP=""
 LEGO_RUN_PROFILE_ARGS=()
 LEGO_RENEW_PROFILE_ARGS=()
 LEGO_RENEW_TIMING_ARGS=()
+LEGO_RENEW_ARI_ARGS=()
 
 cleanup() {
   if [[ -n "${TMPDIR_CLEANUP:-}" && -d "${TMPDIR_CLEANUP}" ]]; then
@@ -142,7 +143,13 @@ configure_lego_profile_args() {
   fi
 
   if [[ "${#LEGO_RUN_PROFILE_ARGS[@]}" -eq 0 ]]; then
-    echo "lego run does not support --profile; IP certificate issuance may fail on CA profile enforcement." >&2
+    echo "lego run does not support --profile; IP certificate issuance cannot use Let's Encrypt IP certificates." >&2
+    exit 1
+  fi
+
+  if [[ "${#LEGO_RENEW_PROFILE_ARGS[@]}" -eq 0 ]]; then
+    echo "lego renew does not support --profile; IP certificate renewal cannot use Let's Encrypt IP certificates." >&2
+    exit 1
   fi
 
   if lego renew --help 2>&1 | grep -q -- "--no-random-sleep"; then
@@ -150,6 +157,12 @@ configure_lego_profile_args() {
   else
     LEGO_RENEW_TIMING_ARGS=()
     echo "lego renew does not support --no-random-sleep; renew may wait before ACME call." >&2
+  fi
+
+  if lego renew --help 2>&1 | grep -q -- "--ari-disable"; then
+    LEGO_RENEW_ARI_ARGS=(--ari-disable)
+  else
+    LEGO_RENEW_ARI_ARGS=()
   fi
 }
 
@@ -172,7 +185,7 @@ issue_or_renew_ip_cert() {
       --domains "${PUBLIC_IP}" \
       --http \
       --http.webroot "${CHALLENGE_WEBROOT}" \
-      renew --days 3 "${LEGO_RENEW_TIMING_ARGS[@]}" "${LEGO_RENEW_PROFILE_ARGS[@]}" \
+      renew "${LEGO_RENEW_PROFILE_ARGS[@]}" "${LEGO_RENEW_ARI_ARGS[@]}" --days 3 "${LEGO_RENEW_TIMING_ARGS[@]}" \
       2>&1 | tee "${renew_log}"; then
       if grep -qi "not registered" "${renew_log}"; then
         echo "Renew failed because ACME account is missing; re-registering with run."
